@@ -15,7 +15,6 @@ class AutoMMBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
         
     async def setup_hook(self):
-        # Registers the views permanently so they work even after bot restarts
         self.add_view(LtcPanelView())
         self.add_view(UsdtPanelView())
         print("🔒 Separate Auto-MM Panel System successfully loaded.")
@@ -32,17 +31,14 @@ async def on_ready():
         print(f"Sync Error: {e}")
 
 # =========================================================================
-# --- PERSISTENT INTERACTIVE PANELS (1:1 GEGENÜBER SCREENSHOT) ---
+# --- PANELS INTERFACE (UPDATED FOR LARGE WHITE HEADER LOOKS) ---
 # =========================================================================
 
-# Main tutorial and info box view
 class TutorialView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        # Link button pointing to tutorial like shown on the screenshot
         self.add_item(discord.ui.Button(label="Tutorial", url="https://example.com/tutorial", style=discord.ButtonStyle.link))
 
-# Litecoin Request Panel View
 class LtcPanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -51,7 +47,6 @@ class LtcPanelView(discord.ui.View):
     async def req_ltc(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(TradeFormatModal(asset="Litecoin (LTC)"))
 
-# USDT Request Panel View
 class UsdtPanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -62,7 +57,49 @@ class UsdtPanelView(discord.ui.View):
 
 
 # =========================================================================
-# --- MODAL & TICKET INTERACTION FLOW ---
+# --- SLASH COMMAND TO DEPLOY 1:1 EMBEDS ---
+# =========================================================================
+
+@bot.tree.command(name="setup_automm", description="Deploys the exact 1:1 Auto Middleman panel into the channel")
+@app_commands.checks.has_permissions(administrator=True)
+async def setup_automm_panel(interaction: discord.Interaction):
+    tos_channel = discord.utils.get(interaction.guild.text_channels, name="tos-crypto")
+    tos_mention = tos_channel.mention if tos_channel else "`#tos-crypto`"
+    
+    # 1. Main Info Block (Fees & ToS)
+    embed_info = discord.Embed(color=discord.Color.from_rgb(47, 49, 54))
+    embed_info.description = (
+        "# Jace's Auto Middleman\n"
+        f"• **Paid Service**\n"
+        f"• Read our ToS before using the bot: {tos_mention}\n\n"
+        "### Fees:\n\n"
+        "• Deals $250+: $1.50\n"
+        "• Deals under $250: $0.50\n"
+        "• __Deals under $50 are **FREE**__"
+    )
+    
+    # 2. Litecoin Block Layout - Using Big Header Markdowns inside the description
+    embed_ltc = discord.Embed(color=discord.Color.blue())
+    embed_ltc.description = "# Ł • Request Litecoin • Ł"
+    
+    # 3. USDT Block Layout - Using multi-line Large Markdown for the split text row style
+    embed_usdt = discord.Embed(color=discord.Color.green())
+    embed_usdt.description = (
+        "# 🛆 • Request USDT\n"
+        "# [BEP-20] • 🛆\n"
+        "• Network: **BSC (BEP-20)**"
+    )
+
+    # Sending all updated embeds to output the text perfectly large
+    await interaction.channel.send(embed=embed_info, view=TutorialView())
+    await interaction.channel.send(embed=embed_ltc, view=LtcPanelView())
+    await interaction.channel.send(embed=embed_usdt, view=UsdtPanelView())
+    
+    await interaction.response.send_message("🎯 AutoMM panel interface deployed cleanly!", ephemeral=True)
+
+
+# =========================================================================
+# --- MODAL & TICKET FLOW CORES ---
 # =========================================================================
 
 class TradeFormatModal(discord.ui.Modal, title="Fill out the format"):
@@ -95,8 +132,7 @@ class TradeFormatModal(discord.ui.Modal, title="Fill out the format"):
         embed.add_field(name="Partner's Items:", value=f"`{self.receiving.value}`", inline=True)
         
         await ticket_channel.send(content=f"{interaction.user.mention} | Trade session initialized.", embed=embed, view=TicketWorkflowView())
-        await interaction.response.send_message(f"✅ **Ticket Created!** Please head over to {ticket_channel.mention}", ephemeral=True)
-
+        await interaction.response.send_message(f"✅ **Ticket Created!** {ticket_channel.mention}", ephemeral=True)
 
 class TicketWorkflowView(discord.ui.View):
     def __init__(self):
@@ -116,7 +152,6 @@ class TicketWorkflowView(discord.ui.View):
         await asyncio.sleep(5)
         await interaction.channel.delete()
 
-
 class SetAmountModal(discord.ui.Modal, title="Set USD Amount"):
     amount = discord.ui.TextInput(label="Enter the amount in USD value", placeholder="e.g. 25.00", required=True)
 
@@ -131,7 +166,6 @@ class SetAmountModal(discord.ui.Modal, title="Set USD Amount"):
         embed.add_field(name="Target Address", value=f"`{fake_addr}`", inline=False)
         
         await interaction.response.send_message(embed=embed, view=PaymentCheckView())
-
 
 class PaymentCheckView(discord.ui.View):
     def __init__(self):
@@ -150,51 +184,6 @@ class PaymentCheckView(discord.ui.View):
         )
         await msg.edit(content=None, embed=embed)
 
-
-# =========================================================================
-# --- SLASH COMMAND TO DEPLOY PANEL LAYOUT ---
-# =========================================================================
-
-@bot.tree.command(name="setup_automm", description="Deploys the exact 1:1 Auto Middleman panel into the channel")
-@app_commands.checks.has_permissions(administrator=True)
-async def setup_automm_panel(interaction: discord.Interaction):
-    # Grabbing channel mention for #tos-crypto if it exists on the guild
-    tos_channel = discord.utils.get(interaction.guild.text_channels, name="tos-crypto")
-    tos_mention = tos_channel.mention if tos_channel else "`#tos-crypto`"
-    
-    # 1. Main Info Block (Fees & ToS)
-    embed_info = discord.Embed(
-        title="Jace's Auto Middleman",
-        description=f"• **Paid Service**\n• Read our ToS before using the bot: {tos_mention}",
-        color=discord.Color.from_rgb(47, 49, 54) # Exact dark-grey embed sidebar
-    )
-    embed_info.add_field(
-        name="Fees:",
-        value="• Deals $250+: $1.50\n• Deals under $250: $0.50\n• Deals under $50 are **FREE**",
-        inline=False
-    )
-    
-    # 2. Litecoin Block Layout
-    embed_ltc = discord.Embed(
-        title="Ł • Request Litecoin • Ł",
-        color=discord.Color.blue()
-    )
-    
-    # 3. USDT Block Layout
-    embed_usdt = discord.Embed(
-        title="🛆 • Request USDT [BEP-20] • 🛆",
-        description="• Network: **BSC (BEP-20)**",
-        color=discord.Color.green()
-    )
-
-    # Sending all embeds under each other matching the screen style perfectly
-    await interaction.channel.send(embed=embed_info, view=TutorialView())
-    await interaction.channel.send(embed=embed_ltc, view=LtcPanelView())
-    await interaction.channel.send(embed=embed_usdt, view=UsdtPanelView())
-    
-    await interaction.response.send_message("🎯 AutoMM panel interface deployed cleanly!", ephemeral=True)
-
-
-# --- RUN THE BOT ENGINE ---
+# --- RUN ENGINE ---
 TOKEN = os.getenv("DISCORD_TOKEN", "YOUR_NEW_BOT_TOKEN")
 bot.run(TOKEN)

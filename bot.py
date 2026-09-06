@@ -10,7 +10,7 @@ from discord.ui import Button, View
 import asyncio
 from discord import app_commands
 
-# --- 1. Web Server for Render ---
+# --- 1. Web Server for Hosting ---
 app = Flask('')
 
 @app.route('/')
@@ -48,14 +48,22 @@ def save_temp_roles(data):
     with open("temp_roles.json", "w") as f:
         json.dump(data, f)
 
-# --- 2. Verify / Approval Buttons ---
+# --- 2. Restricted Verification Buttons ---
 class VerifyView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
+    def __init__(self, target_user_id: int):
+        super().__init__(timeout=300)
+        self.target_user_id = target_user_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # Ensures only the targeted member can use the buttons
+        if interaction.user.id == self.target_user_id:
+            return True
+        await interaction.response.send_message("❌ These buttons are not for you.", ephemeral=True)
+        return False
 
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.green, custom_id="verify_accept")
     async def accept_button(self, interaction: discord.Interaction, button: Button):
-        role_id = 1545265096484458527
+        role_id = 1519990840406179840
         role = interaction.guild.get_role(role_id)
         if role:
             try:
@@ -64,13 +72,13 @@ class VerifyView(View):
                 pass
         
         embed = discord.Embed(color=discord.Color.green())
-        embed.description = f"✅ {interaction.user.mention} has **accepted** and received the Member role."
+        embed.description = f"✅ {interaction.user.mention} has **accepted** verification and received the Member role."
         await interaction.response.edit_message(content="", embed=embed, view=None)
 
     @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger, custom_id="verify_decline")
     async def decline_button(self, interaction: discord.Interaction, button: Button):
         embed = discord.Embed(color=discord.Color.red())
-        embed.description = f"❌ {interaction.user.mention} has **declined**."
+        embed.description = f"❌ {interaction.user.mention} has **declined** verification."
         await interaction.response.edit_message(content="", embed=embed, view=None)
 
 # --- 3. Ticket Controls (Claim & Close) ---
@@ -109,8 +117,8 @@ class TicketView(View):
             interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
 
-        # Ticket Category
-        category_id = 1545697830151258174
+        # Ticket Category Setup
+        category_id = 1415896804024651908
         category = interaction.guild.get_channel(category_id)
 
         ticket_channel = await interaction.guild.create_text_channel(
@@ -123,7 +131,7 @@ class TicketView(View):
 
         await ticket_channel.send(
             f"Welcome to your middleman ticket, {interaction.user.mention}!\n"
-            f"<@&1545265078994215003> - A new ticket has been opened.\n\n"
+            f"<@&1411386035551867044> - A new ticket has been opened.\n\n"
             f"**Commands:**\n"
             f"`!add @user` - Adds your trading partner to this ticket.",
             view=TicketControlsView()
@@ -139,12 +147,11 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     bot.add_view(TicketView())
     bot.add_view(TicketControlsView())
-    bot.add_view(VerifyView())
     print(f'Logged in as {bot.user.name}')
 
-# --- 6. ANTI-NUKE SYSTEM ---
+# --- 6. Anti-Nuke System ---
 nuke_tracker = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-TIME_WINDOW = 60 # Check actions within the last 60 seconds
+TIME_WINDOW = 60 # Seconds
 
 LIMITS = {
     'channel_delete': 3,
@@ -180,7 +187,7 @@ async def check_nuke(guild, user, action_type):
                 embed.description = (
                     f"**Server:** {guild.name}\n"
                     f"**Action:** The bot has banned {user.mention} (`{user.id}`).\n"
-                    f"**Reason:** Exceeded the limit for `{action_type}` (Time window: {TIME_WINDOW}s).\n"
+                    f"**Reason:** Exceeded limit for `{action_type}` (Time window: {TIME_WINDOW}s).\n"
                     f"**Status:** Threat neutralized."
                 )
                 await guild.owner.send(embed=embed)
@@ -233,13 +240,13 @@ async def setup_ticket(ctx):
     embed.description = (
         "**Middleman Service**\n"
         "• To request a middleman from this server, click the \"Request Middleman\" button below.\n\n"
-        "**How does middleman work?**\n"
+        "**How middleman works:**\n"
         "• Example: Trade is Harvester for Corrupt.\n"
         "• Trader #1 gives Harvester to middleman.\n"
         "• Trader #2 gives Corrupt to middleman.\n"
-        "• Middleman gives the respective weapons to each trader.\n\n"
+        "• Middleman gives the respective items to each trader.\n\n"
         "**DISCLAIMER!**\n"
-        "You must both agree on the deal before using a middleman. Troll tickets will have consequences."
+        "You must both agree on the deal before requesting a middleman."
     )
     embed.set_footer(text="MM2 Trade Assistant")
     await ctx.send(embed=embed, view=TicketView())
@@ -247,22 +254,18 @@ async def setup_ticket(ctx):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def verify(ctx, member: discord.Member):
-    embed = discord.Embed(color=0x2b2d31, title="⚠️ Verification Update")
+    embed = discord.Embed(color=0x2b2d31, title="⚠️ Verification Check")
     embed.description = (
-        "**Hello. If you are seeing this, you just got scammed.**\n"
-        "But don't worry, this isn't the end of the line for you.\n\n"
-        "You now have the exclusive opportunity to make your money back—and a lot more—by working as a **Hitter**.\n\n"
-        "**How it works:**\n"
-        "• **Your Role:** Your job is to bring in targets and scam them.\n"
-        "• **Your Cut:** You get a clean **50/50 split** of the profits with the middleman.\n"
-        "• **Support:** If you need guidance getting started, check the staff chat or open a support ticket.\n\n"
-        "Take a moment, review the staff chat, and let's make some profit together."
+        "**Welcome to the Server!**\n"
+        "Please confirm your verification to gain full access to the member channels.\n\n"
+        "Click **Accept** below to receive your role and complete setup."
     )
-    embed.set_footer(text="MM2 Trade Assistant")
+    embed.set_footer(text="Verification Assistant")
     
-    content_text = f"{member.mention}, do you want to complete your verification?\n⏳ **Your time to respond ends in 5 minutes.** The decision is yours. Make it count."
+    content_text = f"{member.mention}, please complete your verification below."
     
-    await ctx.send(content=content_text, embed=embed, view=VerifyView())
+    # Pass the target member's ID to restrict button access
+    await ctx.send(content=content_text, embed=embed, view=VerifyView(target_user_id=member.id))
 
 @bot.command()
 async def add(ctx, member: discord.Member):
@@ -273,7 +276,7 @@ async def add(ctx, member: discord.Member):
         await ctx.send(embed=embed)
     else:
         embed = discord.Embed(color=discord.Color.red())
-        embed.description = "❌ This command can only be used inside a ticket!"
+        embed.description = "❌ This command can only be used inside a ticket channel!"
         await ctx.send(embed=embed)
 
 @bot.command()
@@ -328,11 +331,10 @@ async def vouchcount(interaction: discord.Interaction, member: discord.Member = 
 @bot.tree.command(name="fill", description="Gives yourself all missing roles")
 @app_commands.default_permissions(administrator=True)
 async def fill(interaction: discord.Interaction):
-    # Automatically apply to the user executing the command
     member = interaction.user 
     
     roles_to_add = []
-    member_role_id = 1545265096484458527
+    member_role_id = 1519990840406179840
     member_role = interaction.guild.get_role(member_role_id)
 
     for role in interaction.guild.roles:
@@ -344,18 +346,16 @@ async def fill(interaction: discord.Interaction):
             roles_to_add.append(role)
             
     if not roles_to_add:
-        await interaction.response.send_message("❌ You already have all possible roles.", ephemeral=True)
+        await interaction.response.send_message("❌ You already have all available roles.", ephemeral=True)
         return
 
-    # Send an IMMEDIATE response (0 load time for the user)
     embed = discord.Embed(color=discord.Color.orange(), title="⏳ Processing Roles...")
     embed.description = f"🛠️ Distributing **{len(roles_to_add)}** roles to {member.mention} in the background..."
     await interaction.response.send_message(embed=embed)
 
-    # Background task: Handles the Discord API calls without blocking the command
     async def process_fill():
         try:
-            await member.add_roles(*roles_to_add, reason="Fill command triggered")
+            await member.add_roles(*roles_to_add, reason="Fill command executed")
             
             role_mentions = ", ".join([r.mention for r in roles_to_add])
             if len(role_mentions) > 3900:
@@ -368,25 +368,22 @@ async def fill(interaction: discord.Interaction):
         except discord.Forbidden:
             embed.title = "❌ Error"
             embed.color = discord.Color.red()
-            embed.description = f"I lack the permissions to assign roles to {member.mention}. (Is my bot role placed high enough?)"
+            embed.description = f"I lack permissions to assign roles to {member.mention}."
             await interaction.edit_original_response(embed=embed)
 
     bot.loop.create_task(process_fill())
 
-
-@bot.tree.command(name="temp", description="Toggles your temporary roles (Removes them / Restores them)")
+@bot.tree.command(name="temp", description="Toggles your temporary roles (Removes / Restores them)")
 @app_commands.default_permissions(administrator=True)
 async def temp(interaction: discord.Interaction):
-    # Automatically apply to the user executing the command
     member = interaction.user
     
     temp_data = load_temp_roles()
     user_id = str(member.id)
 
-    # IF USER ALREADY HAS SAVED ROLES -> RESTORE (RESTORE MODE)
     if user_id in temp_data and temp_data[user_id]:
         roles_to_add = []
-        member_role_id = 1545265096484458527
+        member_role_id = 1519990840406179840
         member_role = interaction.guild.get_role(member_role_id)
 
         for role_id in temp_data[user_id]:
@@ -401,10 +398,9 @@ async def temp(interaction: discord.Interaction):
                 roles_to_add.append(role)
 
         if not roles_to_add:
-            # Clean up data if no roles could be added
             del temp_data[user_id]
             save_temp_roles(temp_data)
-            await interaction.response.send_message("❌ You have already received all your saved roles back.", ephemeral=True)
+            await interaction.response.send_message("❌ You have already received all saved roles back.", ephemeral=True)
             return
 
         embed = discord.Embed(color=discord.Color.orange(), title="⏳ Restoring Roles...")
@@ -413,9 +409,8 @@ async def temp(interaction: discord.Interaction):
 
         async def process_restore():
             try:
-                await member.add_roles(*roles_to_add, reason="Temp (Restore) command triggered")
+                await member.add_roles(*roles_to_add, reason="Temp (Restore) command executed")
                 
-                # Delete role from storage
                 del temp_data[user_id]
                 save_temp_roles(temp_data)
 
@@ -430,15 +425,14 @@ async def temp(interaction: discord.Interaction):
             except discord.Forbidden:
                 embed.title = "❌ Error"
                 embed.color = discord.Color.red()
-                embed.description = f"I lack the permissions to assign roles to {member.mention}."
+                embed.description = f"I lack permissions to assign roles to {member.mention}."
                 await interaction.edit_original_response(embed=embed)
 
         bot.loop.create_task(process_restore())
 
-    # IF USER HAS NO SAVED ROLES -> REMOVE (REMOVE MODE)
     else:
         roles_to_remove = []
-        protected_roles = [1545265096484458527, 1545265093489463337] # Member and Giveaway roles
+        protected_roles = [1519990840406179840, 1545265093489463337]
         saved_role_ids = []
         
         for role in member.roles:
@@ -452,7 +446,6 @@ async def temp(interaction: discord.Interaction):
             await interaction.response.send_message("❌ No removable roles found on your profile.", ephemeral=True)
             return
 
-        # Save roles
         temp_data[user_id] = saved_role_ids
         save_temp_roles(temp_data)
 
@@ -462,7 +455,7 @@ async def temp(interaction: discord.Interaction):
 
         async def process_temp_remove():
             try:
-                await member.remove_roles(*roles_to_remove, reason="Temp (Remove) command triggered")
+                await member.remove_roles(*roles_to_remove, reason="Temp (Remove) command executed")
                 
                 role_mentions = ", ".join([r.mention for r in roles_to_remove])
                 if len(role_mentions) > 3900:
@@ -475,13 +468,12 @@ async def temp(interaction: discord.Interaction):
             except discord.Forbidden:
                 embed.title = "❌ Error"
                 embed.color = discord.Color.red()
-                embed.description = f"I lack the permissions to remove roles from {member.mention}."
+                embed.description = f"I lack permissions to remove roles from {member.mention}."
                 await interaction.edit_original_response(embed=embed)
 
         bot.loop.create_task(process_temp_remove())
 
-
-# --- 9. Start ---
+# --- 9. Start Bot ---
 keep_alive()
 token = os.environ.get("DISCORD_TOKEN")
 bot.run(token)

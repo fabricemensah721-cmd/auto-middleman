@@ -17,7 +17,7 @@ from discord import app_commands
 MIDDLEMAN_ROLE_ID = 1411386035551867044
 TICKET_CATEGORY_ID = 1415896804024651908
 MEMBER_ROLE_ID = 1519990840406179840
-AUTO_VOUCH_CHANNEL_ID = 1546151910199922719  # Replace with your target channel ID
+AUTO_VOUCH_CHANNEL_ID = 1546151910199922719 
 
 # --- 1. Web Server for Hosting ---
 app = Flask('')
@@ -230,8 +230,8 @@ def create_vouch_embed(guild: discord.Guild):
     else:
         trader_mention = f"<@{random.randint(100000000000000000, 999999999999999999)}>"
 
-    # Left side: Trade Items | Right side: Payment Methods
-    trade_items = ["In-Game Items", "Blox Fruit", "Blox Fruit Account", "Robux"]
+    # Strictly use "In-Game Items" on the left side
+    trade_items = ["In-Game Items"]
     payment_methods = ["PayPal", "CashApp", "Crypto", "Bank Transfer", "Apple Pay", "Venmo"]
 
     item = random.choice(trade_items)

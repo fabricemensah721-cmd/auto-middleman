@@ -17,7 +17,7 @@ from discord import app_commands
 MIDDLEMAN_ROLE_ID = 1411386035551867044
 TICKET_CATEGORY_ID = 1415896804024651908
 MEMBER_ROLE_ID = 1519990840406179840
-AUTO_VOUCH_CHANNEL_ID = 1546151910199922719  # Dein gewünschter Auto-Vouch Channel
+AUTO_VOUCH_CHANNEL_ID = 1546151910199922719  # Replace with your target channel ID
 
 # --- 1. Web Server for Hosting ---
 app = Flask('')
@@ -207,12 +207,11 @@ async def on_ready():
     bot.add_view(TicketView())
     bot.add_view(TicketControlsView())
     
-    # Automatische Synchronisation der Slash-Commands beim Start
     try:
         synced = await bot.tree.sync()
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] {len(synced)} Slash Commands synchronisiert!")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {len(synced)} Slash Commands synced!")
     except Exception as e:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Fehler beim Sync: {e}")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Sync error: {e}")
         
     print(f'Logged in as {bot.user.name}')
 
@@ -231,7 +230,7 @@ def create_vouch_embed(guild: discord.Guild):
     else:
         trader_mention = f"<@{random.randint(100000000000000000, 999999999999999999)}>"
 
-    # Klare Trennung: Links das Item, rechts die Zahlungsweise
+    # Left side: Trade Items | Right side: Payment Methods
     trade_items = ["In-Game Items", "Blox Fruit", "Blox Fruit Account", "Robux"]
     payment_methods = ["PayPal", "CashApp", "Crypto", "Bank Transfer", "Apple Pay", "Venmo"]
 
@@ -284,8 +283,8 @@ def create_vouch_embed(guild: discord.Guild):
     
     return embed
 
-# --- Automated Loop System ---
-@tasks.loop(minutes=30)
+# --- Automated Loop System (Every 14 Minutes) ---
+@tasks.loop(minutes=14)
 async def auto_vouch_loop():
     channel = bot.get_channel(AUTO_VOUCH_CHANNEL_ID)
     if not channel:
@@ -459,7 +458,7 @@ async def autovouch(interaction: discord.Interaction, option: Literal["on", "off
             auto_vouch_loop.start()
             embed = discord.Embed(
                 color=0x2ecc71, 
-                description=f"✅ **Auto-Vouch System Enabled!**\nIt will post automatically every 30 minutes in <#{AUTO_VOUCH_CHANNEL_ID}>."
+                description=f"✅ **Auto-Vouch System Enabled!**\nIt will post automatically every 14 minutes in <#{AUTO_VOUCH_CHANNEL_ID}>."
             )
         else:
             embed = discord.Embed(color=0xf1c40f, description="⚠️ The Auto-Vouch system is already running.")
@@ -481,7 +480,7 @@ async def autovouch(interaction: discord.Interaction, option: Literal["on", "off
 
     elif option == "status":
         is_running = auto_vouch_loop.is_running()
-        status_str = "🟢 **Active** (Posting every 30 mins)" if is_running else "🔴 **Inactive**"
+        status_str = "🟢 **Active** (Posting every 14 mins)" if is_running else "🔴 **Inactive**"
         embed = discord.Embed(color=0x2b2d31, title="📊 Auto-Vouch System Status")
         embed.add_field(name="State", value=status_str, inline=False)
         embed.add_field(name="Target Channel", value=f"<#{AUTO_VOUCH_CHANNEL_ID}>", inline=False)

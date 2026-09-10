@@ -1,6 +1,8 @@
 import os
 import json
 import time
+import random
+from datetime import datetime
 from collections import defaultdict
 from flask import Flask
 from threading import Thread
@@ -123,7 +125,6 @@ class TicketControlsView(View):
         embed = discord.Embed(color=0x2b2d31)
         embed.description = f"🛡️ {interaction.user.mention} has claimed this ticket."
         embed.set_footer(text="IMS Helper Bot")
-        # Send as clean message instead of replying to avoid ping spam
         await interaction.channel.send(embed=embed)
 
     @discord.ui.button(label="Unclaim", style=discord.ButtonStyle.secondary, custom_id="unclaim_ticket")
@@ -358,7 +359,60 @@ async def close(ctx):
         await asyncio.sleep(5)
         await ctx.channel.delete()
 
-# --- 8. Slash Commands (Vouches, Fill, Temp) ---
+# --- 8. Slash Commands (Vouches, Fill, Temp, AutoVouch) ---
+
+@bot.tree.command(name="autovouch", description="Generates a fake automatic vouch (Admin only)")
+@app_commands.default_permissions(administrator=True)
+async def autovouch(interaction: discord.Interaction):
+    # Finde einen zufälligen Middleman aus dem Server
+    middlemen = [m for m in interaction.guild.members if not m.bot and (any(r.id == MIDDLEMAN_ROLE_ID for r in m.roles) or m.guild_permissions.administrator)]
+    
+    if not middlemen:
+        mm_mention = interaction.user.mention # Fallback, wenn es keinen MM gibt
+    else:
+        mm_mention = random.choice(middlemen).mention
+
+    # Finde einen "Trader" (entweder random User oder erstelle eine echt aussehende Fake-ID wie im Screenshot)
+    traders = [m for m in interaction.guild.members if not m.bot and m not in middlemen]
+    if traders and random.choice([True, False]): # 50% chance auf echten User
+        trader_mention = random.choice(traders).mention
+    else:
+        # Generiert eine zufällige ID, die im Discord wie "<@1489913447859884083>" aussieht (genau wie im Screenshot)
+        trader_mention = f"<@{random.randint(100000000000000000, 999999999999999999)}>"
+
+    # Zufällige Daten generieren
+    payment_methods = ["CashApp", "Crypto", "Bank Transfer", "PayPal", "Apple Pay"]
+    reviews = [
+        "Trustworthy mm, will definitely request again for big deals.",
+        "Very friendly and made the trade super easy, tysm!",
+        "Super quick and answered all my questions patiently, vouch!",
+        "Smooth transaction, no issues at all. +rep",
+        "Fast and reliable as always.",
+        "Best middleman ever! Kept everything secure."
+    ]
+    
+    method = random.choice(payment_methods)
+    review_text = random.choice(reviews)
+    stars = random.choice(["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐⭐", "⭐⭐⭐⭐⭐", "⭐⭐⭐⭐"]) # Höhere Chance auf 5 Sterne
+    trade_id = random.randint(100000, 999999)
+    current_time = datetime.now().strftime("%Y/%m/%d, %H:%M")
+
+    # Erstelle den realistischen Vouch Embed
+    embed = discord.Embed(color=0x2ecc71) # Grünes Embed wie im Screenshot
+    embed.description = (
+        "✅ **new vouch**\n\n"
+        f"**In-Game Items ↔ {method}**\n\n"
+        "**trader**\n"
+        f"{trader_mention}\n\n"
+        "**middleman**\n"
+        f"{mm_mention}\n\n"
+        "**trader review**\n"
+        f"{stars}\n"
+        f"*{review_text}*"
+    )
+    embed.set_footer(text=f"IMS Helper Bot • trade #{trade_id} | {current_time}")
+
+    await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="vouchadd", description="Adds vouches to a user")
 @app_commands.default_permissions(administrator=True) 

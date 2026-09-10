@@ -4,6 +4,7 @@ import time
 import random
 from datetime import datetime
 from collections import defaultdict
+from typing import Literal
 from flask import Flask
 from threading import Thread
 import discord
@@ -18,7 +19,7 @@ TICKET_CATEGORY_ID = 1415896804024651908
 MEMBER_ROLE_ID = 1519990840406179840
 AUTO_VOUCH_CHANNEL_ID = 1546151910199922719  # Dein gewünschter Auto-Vouch Channel
 
-# --- 1. Web Server for Hosting (e.g., Render / Replit) ---
+# --- 1. Web Server for Hosting ---
 app = Flask('')
 
 @app.route('/')
@@ -33,7 +34,7 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# --- 1.5 Storage System (Vouches, Temp Roles & Config) ---
+# --- 1.5 Storage System ---
 def load_vouches():
     try:
         with open("vouches.json", "r") as f:
@@ -69,7 +70,7 @@ def save_config(data):
     with open("config.json", "w") as f:
         json.dump(data, f)
 
-# --- 2. Verification System (Clickable only by the target user) ---
+# --- 2. Verification System ---
 class VerifyView(View):
     def __init__(self, target_user_id: int):
         super().__init__(timeout=300)
@@ -102,7 +103,7 @@ class VerifyView(View):
         embed.set_footer(text="IMS Helper Bot")
         await interaction.response.edit_message(content="", embed=embed, view=None)
 
-# --- 3. Ticket Controls (Claim, Unclaim, Close) ---
+# --- 3. Ticket Controls ---
 class TicketControlsView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -206,9 +207,6 @@ async def on_ready():
     bot.add_view(TicketView())
     bot.add_view(TicketControlsView())
     print(f'Logged in as {bot.user.name}')
-    
-    # Check if the auto-vouch loop should be started automatically (optional, currently waits for command)
-    print("Auto-Vouch is ready to be enabled.")
 
 # --- Helper Function for Fake Vouches ---
 def create_vouch_embed(guild: discord.Guild):
@@ -221,14 +219,12 @@ def create_vouch_embed(guild: discord.Guild):
 
     traders = [m for m in guild.members if not m.bot and m not in middlemen]
     if traders and random.choice([True, False, False]): 
-        # 33% Chance auf echten User, 66% auf random Fake ID
         trader_mention = random.choice(traders).mention
     else:
         trader_mention = f"<@{random.randint(100000000000000000, 999999999999999999)}>"
 
     payment_methods = ["CashApp", "Crypto", "Bank Transfer", "PayPal", "Apple Pay", "Venmo", "Zelle"]
     
-    # 22 verschiedene, echt wirkende Reviews
     reviews = [
         "Trustworthy mm, will definitely request again for big deals.",
         "Very friendly and made the trade super easy, tysm!",
@@ -277,15 +273,16 @@ def create_vouch_embed(guild: discord.Guild):
     return embed
 
 # --- Automated Loop System ---
-@tasks.loop(minutes=30) # Zeitabstand anpassen (hier alle 30 Min)
+@tasks.loop(minutes=30)
 async def auto_vouch_loop():
     channel = bot.get_channel(AUTO_VOUCH_CHANNEL_ID)
     if not channel:
-        print(f"Error: Could not find auto-vouch channel with ID {AUTO_VOUCH_CHANNEL_ID}")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Auto-Vouch Error: Channel ID {AUTO_VOUCH_CHANNEL_ID} not found.")
         return
     
     embed = create_vouch_embed(channel.guild)
     await channel.send(embed=embed)
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Auto-Vouch successfully posted in channel {channel.name}!")
 
 @auto_vouch_loop.before_loop
 async def before_auto_vouch():
@@ -440,33 +437,44 @@ async def close(ctx):
         await asyncio.sleep(5)
         await ctx.channel.delete()
 
-# --- 8. Slash Commands ---
-@bot.tree.command(name="autovouch_system", description="Enables or disables the automatic vouch posting loop")
-@app_commands.describe(enable="True to turn the loop ON, False to turn it OFF")
+# --- 8. Unified Slash Command ---
+@bot.tree.command(name="autovouch", description="Control the Auto-Vouch System (on / off / now / status)")
+@app_commands.describe(option="Choose 'on' to enable loop, 'off' to disable, 'now' to post immediately, 'status' to check")
 @app_commands.default_permissions(administrator=True)
-async def autovouch_system(interaction: discord.Interaction, enable: bool):
-    if enable:
+async def autovouch(interaction: discord.Interaction, option: Literal["on", "off", "now", "status"]):
+    if option == "on":
         if not auto_vouch_loop.is_running():
             auto_vouch_loop.start()
-            embed = discord.Embed(color=0x2b2d31, description="✅ **Auto-Vouch System enabled!**\nIt will now post fake vouches automatically every 30 minutes in the configured channel.")
-            embed.set_footer(text="IMS Helper Bot")
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            embed = discord.Embed(
+                color=0x2ecc71, 
+                description=f"✅ **Auto-Vouch System Enabled!**\nIt will post automatically every 30 minutes in <#{AUTO_VOUCH_CHANNEL_ID}>."
+            )
         else:
-            await interaction.response.send_message("⚠️ The Auto-Vouch system is already running.", ephemeral=True)
-    else:
+            embed = discord.Embed(color=0xf1c40f, description="⚠️ The Auto-Vouch system is already running.")
+        embed.set_footer(text="IMS Helper Bot")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    elif option == "off":
         if auto_vouch_loop.is_running():
             auto_vouch_loop.cancel()
-            embed = discord.Embed(color=0x2b2d31, description="🛑 **Auto-Vouch System disabled!**")
-            embed.set_footer(text="IMS Helper Bot")
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            embed = discord.Embed(color=0xe74c3c, description="🛑 **Auto-Vouch System Disabled!**")
         else:
-            await interaction.response.send_message("⚠️ The Auto-Vouch system is not running right now.", ephemeral=True)
+            embed = discord.Embed(color=0xf1c40f, description="⚠️ The Auto-Vouch system is not running.")
+        embed.set_footer(text="IMS Helper Bot")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="autovouch", description="Manually generates a fake vouch here (Admin only)")
-@app_commands.default_permissions(administrator=True)
-async def autovouch(interaction: discord.Interaction):
-    embed = create_vouch_embed(interaction.guild)
-    await interaction.response.send_message(embed=embed)
+    elif option == "now":
+        embed = create_vouch_embed(interaction.guild)
+        await interaction.response.send_message(embed=embed)
+
+    elif option == "status":
+        is_running = auto_vouch_loop.is_running()
+        status_str = "🟢 **Active** (Posting every 30 mins)" if is_running else "🔴 **Inactive**"
+        embed = discord.Embed(color=0x2b2d31, title="📊 Auto-Vouch System Status")
+        embed.add_field(name="State", value=status_str, inline=False)
+        embed.add_field(name="Target Channel", value=f"<#{AUTO_VOUCH_CHANNEL_ID}>", inline=False)
+        embed.set_footer(text="IMS Helper Bot")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="vouchadd", description="Adds vouches to a user")
 @app_commands.default_permissions(administrator=True) 

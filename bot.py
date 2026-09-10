@@ -223,8 +223,17 @@ def create_vouch_embed(guild: discord.Guild):
     else:
         trader_mention = f"<@{random.randint(100000000000000000, 999999999999999999)}>"
 
-    payment_methods = ["CashApp", "Crypto", "Bank Transfer", "PayPal", "Apple Pay", "Venmo", "Zelle"]
-    
+    # Trade Items & Zahlungsarten (Zelle entfernt, Blox Fruit & Robux & Bank Transfer & Apple Pay dabei)
+    trade_items = ["Blox Fruit", "Robux", "Blox Fruit Account", "In-Game Items"]
+    payment_methods = ["CashApp", "Crypto", "Bank Transfer", "PayPal", "Apple Pay", "Venmo", "Robux"]
+
+    item = random.choice(trade_items)
+    method = random.choice(payment_methods)
+
+    # Verhindert ungültige Kombinationen wie "Robux ↔ Robux"
+    if item == "Robux" and method == "Robux":
+        method = "PayPal"
+
     reviews = [
         "Trustworthy mm, will definitely request again for big deals.",
         "Very friendly and made the trade super easy, tysm!",
@@ -250,7 +259,6 @@ def create_vouch_embed(guild: discord.Guild):
         "Absolute legend, saved me from a potential scam earlier, smooth trade here."
     ]
     
-    method = random.choice(payment_methods)
     review_text = random.choice(reviews)
     stars = random.choice(["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐⭐", "⭐⭐⭐⭐⭐", "⭐⭐⭐⭐"]) 
     trade_id = random.randint(100000, 999999)
@@ -259,7 +267,7 @@ def create_vouch_embed(guild: discord.Guild):
     embed = discord.Embed(color=0x2ecc71) 
     embed.description = (
         "✅ **new vouch**\n\n"
-        f"**In-Game Items ↔ {method}**\n\n"
+        f"**{item} ↔ {method}**\n\n"
         "**trader**\n"
         f"{trader_mention}\n\n"
         "**middleman**\n"

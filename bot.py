@@ -206,6 +206,14 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     bot.add_view(TicketView())
     bot.add_view(TicketControlsView())
+    
+    # Automatische Synchronisation der Slash-Commands beim Start
+    try:
+        synced = await bot.tree.sync()
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {len(synced)} Slash Commands synchronisiert!")
+    except Exception as e:
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Fehler beim Sync: {e}")
+        
     print(f'Logged in as {bot.user.name}')
 
 # --- Helper Function for Fake Vouches ---
@@ -223,16 +231,12 @@ def create_vouch_embed(guild: discord.Guild):
     else:
         trader_mention = f"<@{random.randint(100000000000000000, 999999999999999999)}>"
 
-    # Trade Items & Zahlungsarten (Zelle entfernt, Blox Fruit & Robux & Bank Transfer & Apple Pay dabei)
-    trade_items = ["Blox Fruit", "Robux", "Blox Fruit Account", "In-Game Items"]
-    payment_methods = ["CashApp", "Crypto", "Bank Transfer", "PayPal", "Apple Pay", "Venmo", "Robux"]
+    # Klare Trennung: Links das Item, rechts die Zahlungsweise
+    trade_items = ["In-Game Items", "Blox Fruit", "Blox Fruit Account", "Robux"]
+    payment_methods = ["PayPal", "CashApp", "Crypto", "Bank Transfer", "Apple Pay", "Venmo"]
 
     item = random.choice(trade_items)
     method = random.choice(payment_methods)
-
-    # Verhindert ungültige Kombinationen wie "Robux ↔ Robux"
-    if item == "Robux" and method == "Robux":
-        method = "PayPal"
 
     reviews = [
         "Trustworthy mm, will definitely request again for big deals.",

@@ -58,7 +58,6 @@ def load_config():
         with open("config.json", "r") as f:
             return json.load(f)
     except FileNotFoundError:
-        # Default Verify Text matching the screenshot
         return {
             "verify_text": "**Target:** {member}\n\nIf you're seeing this, you've likely just been scammed — but this doesn't end how you think.\n\nMost people in this server started out the same way. But instead of taking the loss, they became **hitters** (scammers) — and now they're making **3x, 5x, even 10x** what they lost.\n\nThis is your chance to turn a setback into serious profit.\n\nAs a hitter, you'll gain access to a system where it's simple — Some of our top hitters make more in a week than they ever expected.\n\n**You now have access to the staff chat and other hitter channels.** Head to the main guide channel to learn how to start.\n\n⏰ Every minute you wait is profit missed.\n\nNeed help getting started? Ask in the support system channel.\n\nYou've already been pulled in — now it's time to flip the script and come out ahead."
         }
@@ -88,14 +87,16 @@ class VerifyView(View):
             except discord.Forbidden:
                 pass
         
-        embed = discord.Embed(color=discord.Color.green())
+        embed = discord.Embed(color=0x2b2d31)
         embed.description = f"✅ Success! {interaction.user.mention} has been successfully verified."
+        embed.set_footer(text="IMS Helper Bot")
         await interaction.response.edit_message(content="", embed=embed, view=None)
 
     @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger, custom_id="verify_decline")
     async def decline_button(self, interaction: discord.Interaction, button: Button):
-        embed = discord.Embed(color=discord.Color.red())
+        embed = discord.Embed(color=0x2b2d31)
         embed.description = f"❌ {interaction.user.mention} has declined the verification process."
+        embed.set_footer(text="IMS Helper Bot")
         await interaction.response.edit_message(content="", embed=embed, view=None)
 
 # --- 3. Ticket Controls (Claim, Unclaim, Close) ---
@@ -111,9 +112,19 @@ class TicketControlsView(View):
             return
 
         await interaction.channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
-        embed = discord.Embed(color=discord.Color.green())
+        
+        # Disable Claim, Enable Unclaim
+        button.disabled = True
+        for child in self.children:
+            if child.custom_id == "unclaim_ticket":
+                child.disabled = False
+        await interaction.response.edit_message(view=self)
+
+        embed = discord.Embed(color=0x2b2d31)
         embed.description = f"🛡️ {interaction.user.mention} has claimed this ticket."
-        await interaction.response.send_message(embed=embed)
+        embed.set_footer(text="IMS Helper Bot")
+        # Send as clean message instead of replying to avoid ping spam
+        await interaction.channel.send(embed=embed)
 
     @discord.ui.button(label="Unclaim", style=discord.ButtonStyle.secondary, custom_id="unclaim_ticket")
     async def unclaim_button(self, interaction: discord.Interaction, button: Button):
@@ -122,15 +133,29 @@ class TicketControlsView(View):
             await interaction.response.send_message("❌ Only Middlemen can unclaim this ticket!", ephemeral=True)
             return
 
-        embed = discord.Embed(color=discord.Color.orange())
+        # Disable Unclaim, Enable Claim
+        button.disabled = True
+        for child in self.children:
+            if child.custom_id == "claim_ticket":
+                child.disabled = False
+        await interaction.response.edit_message(view=self)
+
+        embed = discord.Embed(color=0x2b2d31)
         embed.description = f"🔓 {interaction.user.mention} has unclaimed this ticket."
-        await interaction.response.send_message(embed=embed)
+        embed.set_footer(text="IMS Helper Bot")
+        await interaction.channel.send(embed=embed)
 
     @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, custom_id="close_ticket")
     async def close_button(self, interaction: discord.Interaction, button: Button):
-        embed = discord.Embed(color=discord.Color.red())
+        # Disable all buttons so no one can click them anymore
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(view=self)
+
+        embed = discord.Embed(color=0x2b2d31)
         embed.description = "🔒 This ticket will be closed and deleted in 5 seconds..."
-        await interaction.response.send_message(embed=embed)
+        embed.set_footer(text="IMS Helper Bot")
+        await interaction.channel.send(embed=embed)
         await asyncio.sleep(5)
         await interaction.channel.delete()
 
@@ -157,14 +182,13 @@ class TicketView(View):
 
         await interaction.response.send_message(f"Your ticket has been created: {ticket_channel.mention}", ephemeral=True)
 
-        # Ticket Embeds exactly as requested in the screenshot
         embed1 = discord.Embed(title="New Trade Ticket", color=0x2b2d31)
         embed1.description = "Thank you for using our middleman services.\n\nPlease wait for a middleman to assist you.\n\nIf you have any questions, please let a staff member know."
-        embed1.set_footer(text="G2G Trade Assistant")
+        embed1.set_footer(text="IMS Helper Bot")
 
         embed2 = discord.Embed(title="Trade Parties", color=0x2b2d31)
         embed2.description = f"**Requester:**\n{interaction.user.mention}"
-        embed2.set_footer(text="G2G Trade Assistant")
+        embed2.set_footer(text="IMS Helper Bot")
 
         await ticket_channel.send(
             content=f"{interaction.user.mention} <@&{MIDDLEMAN_ROLE_ID}>",
@@ -217,12 +241,13 @@ async def check_nuke(guild, user, action_type):
         try:
             await guild.ban(user, reason=f"Anti-Nuke triggered: Limit for {action_type} exceeded.")
             try:
-                embed = discord.Embed(title="🚨 ANTI-NUKE TRIGGERED", color=discord.Color.red())
+                embed = discord.Embed(title="🚨 ANTI-NUKE TRIGGERED", color=0x2b2d31)
                 embed.description = (
                     f"**Server:** {guild.name}\n"
                     f"**Action:** The bot banned {user.mention} (`{user.id}`).\n"
                     f"**Reason:** Limit for `{action_type}` exceeded within {TIME_WINDOW}s."
                 )
+                embed.set_footer(text="IMS Helper Bot")
                 await guild.owner.send(embed=embed)
             except discord.Forbidden:
                 pass 
@@ -277,19 +302,19 @@ async def setup_ticket(ctx):
         "1. Both parties provide the trade details in the ticket.\n"
         "2. A middleman claims the ticket and conducts the trade safely."
     )
-    embed.set_footer(text="Trade Assistant")
+    embed.set_footer(text="IMS Helper Bot")
     await ctx.send(embed=embed, view=TicketView())
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setverifytext(ctx, *, new_text: str):
-    """Changes the text of the verify message. Use {member} to mention the user."""
     config = load_config()
     config["verify_text"] = new_text
     save_config(config)
     
-    embed = discord.Embed(color=discord.Color.green())
+    embed = discord.Embed(color=0x2b2d31)
     embed.description = f"✅ The verify text has been updated!\n\n**Preview:**\n{new_text}"
+    embed.set_footer(text="IMS Helper Bot")
     await ctx.send(embed=embed)
 
 @bot.command()
@@ -297,17 +322,13 @@ async def setverifytext(ctx, *, new_text: str):
 async def verify(ctx, member: discord.Member):
     config = load_config()
     
-    # Load raw text from the config
     raw_text = config.get("verify_text", "**Target:** {member}\n\nIf you're seeing this, you've likely just been scammed — but this doesn't end how you think.\n\nMost people in this server started out the same way. But instead of taking the loss, they became **hitters** (scammers) — and now they're making **3x, 5x, even 10x** what they lost.\n\nThis is your chance to turn a setback into serious profit.\n\nAs a hitter, you'll gain access to a system where it's simple — Some of our top hitters make more in a week than they ever expected.\n\n**You now have access to the staff chat and other hitter channels.** Head to the main guide channel to learn how to start.\n\n⏰ Every minute you wait is profit missed.\n\nNeed help getting started? Ask in the support system channel.\n\nYou've already been pulled in — now it's time to flip the script and come out ahead.")
-    
-    # Replace {member} with the actual user ping
     formatted_text = raw_text.replace("{member}", member.mention)
 
     embed = discord.Embed(color=0x2b2d31)
     embed.description = formatted_text
-    embed.set_footer(text="G2G Trade Assistant")
+    embed.set_footer(text="IMS Helper Bot")
     
-    # No outside text/title to perfectly match the layout in the image
     await ctx.send(
         embed=embed, 
         view=VerifyView(target_user_id=member.id)
@@ -317,19 +338,22 @@ async def verify(ctx, member: discord.Member):
 async def add(ctx, member: discord.Member):
     if "ticket" in ctx.channel.name:
         await ctx.channel.set_permissions(member, read_messages=True, send_messages=True)
-        embed = discord.Embed(color=discord.Color.green())
+        embed = discord.Embed(color=0x2b2d31)
         embed.description = f"✅ {member.mention} has been added to the ticket!"
+        embed.set_footer(text="IMS Helper Bot")
         await ctx.send(embed=embed)
     else:
-        embed = discord.Embed(color=discord.Color.red())
+        embed = discord.Embed(color=0x2b2d31)
         embed.description = "❌ This command can only be used inside a ticket channel!"
+        embed.set_footer(text="IMS Helper Bot")
         await ctx.send(embed=embed)
 
 @bot.command()
 async def close(ctx):
     if "ticket" in ctx.channel.name:
-        embed = discord.Embed(color=discord.Color.red())
+        embed = discord.Embed(color=0x2b2d31)
         embed.description = "🔒 The ticket will be closed and deleted in 5 seconds..."
+        embed.set_footer(text="IMS Helper Bot")
         await ctx.send(embed=embed)
         await asyncio.sleep(5)
         await ctx.channel.delete()
@@ -346,10 +370,11 @@ async def vouchadd(interaction: discord.Interaction, member: discord.Member, amo
     vouch_data[user_id] = new_vouches
     save_vouches(vouch_data)
 
-    embed = discord.Embed(color=discord.Color.green())
+    embed = discord.Embed(color=0x2b2d31)
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.add_field(name="Vouches added", value=f"+{amount} for {member.mention}", inline=False)
     embed.add_field(name="Total Vouches", value=str(new_vouches), inline=True)
+    embed.set_footer(text="IMS Helper Bot")
     await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="vouchcount", description="Shows a user's vouches")
@@ -362,6 +387,7 @@ async def vouchcount(interaction: discord.Interaction, member: discord.Member = 
     embed = discord.Embed(color=0x2b2d31)
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.add_field(name="Total Vouches", value=str(current_vouches), inline=True)
+    embed.set_footer(text="IMS Helper Bot")
     await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="fill", description="Gives you all missing roles")
@@ -383,20 +409,19 @@ async def fill(interaction: discord.Interaction):
         await interaction.response.send_message("❌ You already have all available roles.", ephemeral=True)
         return
 
-    embed = discord.Embed(color=discord.Color.orange(), title="⏳ Assigning roles...")
+    embed = discord.Embed(color=0x2b2d31, title="⏳ Assigning roles...")
     embed.description = f"🛠️ Assigning **{len(roles_to_add)}** roles to {member.mention}..."
+    embed.set_footer(text="IMS Helper Bot")
     await interaction.response.send_message(embed=embed)
 
     async def process_fill():
         try:
             await member.add_roles(*roles_to_add, reason="Fill command executed")
             embed.title = "✅ Roles assigned"
-            embed.color = discord.Color.green()
             embed.description = f"🛠️ **{len(roles_to_add)}** role(s) were assigned to {member.mention}."
             await interaction.edit_original_response(embed=embed)
         except discord.Forbidden:
             embed.title = "❌ Error"
-            embed.color = discord.Color.red()
             embed.description = "Missing permissions to assign roles."
             await interaction.edit_original_response(embed=embed)
 
@@ -424,7 +449,8 @@ async def temp(interaction: discord.Interaction):
             await interaction.response.send_message("❌ No restorable roles found.", ephemeral=True)
             return
 
-        embed = discord.Embed(color=discord.Color.orange(), title="⏳ Restoring roles...")
+        embed = discord.Embed(color=0x2b2d31, title="⏳ Restoring roles...")
+        embed.set_footer(text="IMS Helper Bot")
         await interaction.response.send_message(embed=embed)
 
         async def process_restore():
@@ -433,12 +459,10 @@ async def temp(interaction: discord.Interaction):
                 del temp_data[user_id]
                 save_temp_roles(temp_data)
                 embed.title = "✅ Roles restored"
-                embed.color = discord.Color.blue()
                 embed.description = f"🛠️ **{len(roles_to_add)}** role(s) restored."
                 await interaction.edit_original_response(embed=embed)
             except discord.Forbidden:
                 embed.title = "❌ Error"
-                embed.color = discord.Color.red()
                 embed.description = "Missing permissions to assign roles."
                 await interaction.edit_original_response(embed=embed)
 
@@ -462,19 +486,18 @@ async def temp(interaction: discord.Interaction):
         temp_data[user_id] = saved_role_ids
         save_temp_roles(temp_data)
 
-        embed = discord.Embed(color=discord.Color.orange(), title="⏳ Removing roles...")
+        embed = discord.Embed(color=0x2b2d31, title="⏳ Removing roles...")
+        embed.set_footer(text="IMS Helper Bot")
         await interaction.response.send_message(embed=embed)
 
         async def process_temp_remove():
             try:
                 await member.remove_roles(*roles_to_remove, reason="Temp command executed")
                 embed.title = "✅ Roles removed"
-                embed.color = discord.Color.red()
                 embed.description = f"🛠️ **{len(roles_to_remove)}** role(s) temporarily removed."
                 await interaction.edit_original_response(embed=embed)
             except discord.Forbidden:
                 embed.title = "❌ Error"
-                embed.color = discord.Color.red()
                 embed.description = "Missing permissions to remove roles."
                 await interaction.edit_original_response(embed=embed)
 

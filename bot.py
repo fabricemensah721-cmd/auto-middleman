@@ -7,7 +7,7 @@ from collections import defaultdict
 from flask import Flask
 from threading import Thread
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ui import Button, View
 import asyncio
 from discord import app_commands
@@ -16,6 +16,7 @@ from discord import app_commands
 MIDDLEMAN_ROLE_ID = 1411386035551867044
 TICKET_CATEGORY_ID = 1415896804024651908
 MEMBER_ROLE_ID = 1519990840406179840
+AUTO_VOUCH_CHANNEL_ID = 1546151910199922719  # Dein gewünschter Auto-Vouch Channel
 
 # --- 1. Web Server for Hosting (e.g., Render / Replit) ---
 app = Flask('')
@@ -115,7 +116,6 @@ class TicketControlsView(View):
 
         await interaction.channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
         
-        # Disable Claim, Enable Unclaim
         button.disabled = True
         for child in self.children:
             if child.custom_id == "unclaim_ticket":
@@ -134,7 +134,6 @@ class TicketControlsView(View):
             await interaction.response.send_message("❌ Only Middlemen can unclaim this ticket!", ephemeral=True)
             return
 
-        # Disable Unclaim, Enable Claim
         button.disabled = True
         for child in self.children:
             if child.custom_id == "claim_ticket":
@@ -148,7 +147,6 @@ class TicketControlsView(View):
 
     @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, custom_id="close_ticket")
     async def close_button(self, interaction: discord.Interaction, button: Button):
-        # Disable all buttons so no one can click them anymore
         for child in self.children:
             child.disabled = True
         await interaction.response.edit_message(view=self)
@@ -197,7 +195,7 @@ class TicketView(View):
             view=TicketControlsView()
         )
 
-# --- 5. Bot Configuration ---
+# --- 5. Bot Configuration & Events ---
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True 
@@ -208,6 +206,90 @@ async def on_ready():
     bot.add_view(TicketView())
     bot.add_view(TicketControlsView())
     print(f'Logged in as {bot.user.name}')
+    
+    # Check if the auto-vouch loop should be started automatically (optional, currently waits for command)
+    print("Auto-Vouch is ready to be enabled.")
+
+# --- Helper Function for Fake Vouches ---
+def create_vouch_embed(guild: discord.Guild):
+    middlemen = [m for m in guild.members if not m.bot and (any(r.id == MIDDLEMAN_ROLE_ID for r in m.roles) or m.guild_permissions.administrator)]
+    
+    if not middlemen:
+        mm_mention = f"<@{guild.owner_id}>"
+    else:
+        mm_mention = random.choice(middlemen).mention
+
+    traders = [m for m in guild.members if not m.bot and m not in middlemen]
+    if traders and random.choice([True, False, False]): 
+        # 33% Chance auf echten User, 66% auf random Fake ID
+        trader_mention = random.choice(traders).mention
+    else:
+        trader_mention = f"<@{random.randint(100000000000000000, 999999999999999999)}>"
+
+    payment_methods = ["CashApp", "Crypto", "Bank Transfer", "PayPal", "Apple Pay", "Venmo", "Zelle"]
+    
+    # 22 verschiedene, echt wirkende Reviews
+    reviews = [
+        "Trustworthy mm, will definitely request again for big deals.",
+        "Very friendly and made the trade super easy, tysm!",
+        "Super quick and answered all my questions patiently, vouch!",
+        "Smooth transaction, no issues at all. +rep",
+        "Fast and reliable as always.",
+        "Best middleman ever! Kept everything secure.",
+        "100% legit, guided me through the whole process.",
+        "Was scared of getting scammed but this MM is the goat. Vouch!",
+        "Trade went perfect. Thanks for the help!",
+        "Highly recommend this server for trades. Legit.",
+        "W MM. Got my items in under 5 minutes.",
+        "Extremely professional and safe.",
+        "Quick, easy, and transparent. Will use again.",
+        "Don't hesitate to use them, 10/10 service.",
+        "First time using a middleman, they made it so simple.",
+        "Vouch! Secured a $500 deal with zero problems.",
+        "Another successful trade. Thanks guys!",
+        "Patient and helpful, even when the other guy was slow.",
+        "Top tier service. Wouldn't trade anywhere else.",
+        "Goated MM! Got my money instantly.",
+        "Very fast response time and smooth handover.",
+        "Absolute legend, saved me from a potential scam earlier, smooth trade here."
+    ]
+    
+    method = random.choice(payment_methods)
+    review_text = random.choice(reviews)
+    stars = random.choice(["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐⭐", "⭐⭐⭐⭐⭐", "⭐⭐⭐⭐"]) 
+    trade_id = random.randint(100000, 999999)
+    current_time = datetime.now().strftime("%Y/%m/%d, %H:%M")
+
+    embed = discord.Embed(color=0x2ecc71) 
+    embed.description = (
+        "✅ **new vouch**\n\n"
+        f"**In-Game Items ↔ {method}**\n\n"
+        "**trader**\n"
+        f"{trader_mention}\n\n"
+        "**middleman**\n"
+        f"{mm_mention}\n\n"
+        "**trader review**\n"
+        f"{stars}\n"
+        f"*{review_text}*"
+    )
+    embed.set_footer(text=f"IMS Helper Bot • trade #{trade_id} | {current_time}")
+    
+    return embed
+
+# --- Automated Loop System ---
+@tasks.loop(minutes=30) # Zeitabstand anpassen (hier alle 30 Min)
+async def auto_vouch_loop():
+    channel = bot.get_channel(AUTO_VOUCH_CHANNEL_ID)
+    if not channel:
+        print(f"Error: Could not find auto-vouch channel with ID {AUTO_VOUCH_CHANNEL_ID}")
+        return
+    
+    embed = create_vouch_embed(channel.guild)
+    await channel.send(embed=embed)
+
+@auto_vouch_loop.before_loop
+async def before_auto_vouch():
+    await bot.wait_until_ready()
 
 # --- 6. Anti-Nuke System ---
 nuke_tracker = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
@@ -281,7 +363,6 @@ async def on_member_ban(guild, user):
     await check_nuke(guild, actor, 'ban')
 
 # --- 7. General Commands ---
-
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def sync(ctx):
@@ -359,59 +440,32 @@ async def close(ctx):
         await asyncio.sleep(5)
         await ctx.channel.delete()
 
-# --- 8. Slash Commands (Vouches, Fill, Temp, AutoVouch) ---
+# --- 8. Slash Commands ---
+@bot.tree.command(name="autovouch_system", description="Enables or disables the automatic vouch posting loop")
+@app_commands.describe(enable="True to turn the loop ON, False to turn it OFF")
+@app_commands.default_permissions(administrator=True)
+async def autovouch_system(interaction: discord.Interaction, enable: bool):
+    if enable:
+        if not auto_vouch_loop.is_running():
+            auto_vouch_loop.start()
+            embed = discord.Embed(color=0x2b2d31, description="✅ **Auto-Vouch System enabled!**\nIt will now post fake vouches automatically every 30 minutes in the configured channel.")
+            embed.set_footer(text="IMS Helper Bot")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        else:
+            await interaction.response.send_message("⚠️ The Auto-Vouch system is already running.", ephemeral=True)
+    else:
+        if auto_vouch_loop.is_running():
+            auto_vouch_loop.cancel()
+            embed = discord.Embed(color=0x2b2d31, description="🛑 **Auto-Vouch System disabled!**")
+            embed.set_footer(text="IMS Helper Bot")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        else:
+            await interaction.response.send_message("⚠️ The Auto-Vouch system is not running right now.", ephemeral=True)
 
-@bot.tree.command(name="autovouch", description="Generates a fake automatic vouch (Admin only)")
+@bot.tree.command(name="autovouch", description="Manually generates a fake vouch here (Admin only)")
 @app_commands.default_permissions(administrator=True)
 async def autovouch(interaction: discord.Interaction):
-    # Finde einen zufälligen Middleman aus dem Server
-    middlemen = [m for m in interaction.guild.members if not m.bot and (any(r.id == MIDDLEMAN_ROLE_ID for r in m.roles) or m.guild_permissions.administrator)]
-    
-    if not middlemen:
-        mm_mention = interaction.user.mention # Fallback, wenn es keinen MM gibt
-    else:
-        mm_mention = random.choice(middlemen).mention
-
-    # Finde einen "Trader" (entweder random User oder erstelle eine echt aussehende Fake-ID wie im Screenshot)
-    traders = [m for m in interaction.guild.members if not m.bot and m not in middlemen]
-    if traders and random.choice([True, False]): # 50% chance auf echten User
-        trader_mention = random.choice(traders).mention
-    else:
-        # Generiert eine zufällige ID, die im Discord wie "<@1489913447859884083>" aussieht (genau wie im Screenshot)
-        trader_mention = f"<@{random.randint(100000000000000000, 999999999999999999)}>"
-
-    # Zufällige Daten generieren
-    payment_methods = ["CashApp", "Crypto", "Bank Transfer", "PayPal", "Apple Pay"]
-    reviews = [
-        "Trustworthy mm, will definitely request again for big deals.",
-        "Very friendly and made the trade super easy, tysm!",
-        "Super quick and answered all my questions patiently, vouch!",
-        "Smooth transaction, no issues at all. +rep",
-        "Fast and reliable as always.",
-        "Best middleman ever! Kept everything secure."
-    ]
-    
-    method = random.choice(payment_methods)
-    review_text = random.choice(reviews)
-    stars = random.choice(["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐⭐", "⭐⭐⭐⭐⭐", "⭐⭐⭐⭐"]) # Höhere Chance auf 5 Sterne
-    trade_id = random.randint(100000, 999999)
-    current_time = datetime.now().strftime("%Y/%m/%d, %H:%M")
-
-    # Erstelle den realistischen Vouch Embed
-    embed = discord.Embed(color=0x2ecc71) # Grünes Embed wie im Screenshot
-    embed.description = (
-        "✅ **new vouch**\n\n"
-        f"**In-Game Items ↔ {method}**\n\n"
-        "**trader**\n"
-        f"{trader_mention}\n\n"
-        "**middleman**\n"
-        f"{mm_mention}\n\n"
-        "**trader review**\n"
-        f"{stars}\n"
-        f"*{review_text}*"
-    )
-    embed.set_footer(text=f"IMS Helper Bot • trade #{trade_id} | {current_time}")
-
+    embed = create_vouch_embed(interaction.guild)
     await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="vouchadd", description="Adds vouches to a user")

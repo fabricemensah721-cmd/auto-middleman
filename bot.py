@@ -468,6 +468,31 @@ async def tos(interaction: discord.Interaction):
     embed.set_footer(text="Powered by IMS Helper Bot")
     await interaction.response.send_message(embed=embed)
 
+@bot.tree.command(name="mmexplain", description="Explains how the Middleman service works step-by-step")
+async def mmexplain(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🛡️ How Middleman Service Works",
+        color=0x2b2d31,
+        timestamp=discord.utils.utcnow()
+    )
+    embed.description = (
+        "A **Middleman (MM)** is a verified staff member who acts as a neutral third party to ensure a safe transaction without scams.\n\n"
+        "**1. 🎫 Open a Ticket**\n"
+        "Click the button in the middleman channel to open a private ticket. Invite the person you are trading with.\n\n"
+        "**2. 📝 Agree on Deal Details**\n"
+        "Specify exactly what is being traded (e.g., Account/Item for Cash/Crypto/Giftcard) and state who is paying fees.\n\n"
+        "**3. 📥 Hand over Item to MM**\n"
+        "The seller hands over the in-game item, account, or key to the Middleman. The Middleman secures and verifies it.\n\n"
+        "**4. 💸 Send Payment**\n"
+        "Once the Middleman confirms holding the seller's asset, the buyer sends payment directly to the seller.\n\n"
+        "**5. ✅ Confirmation & Asset Release**\n"
+        "The seller confirms full receipt of payment. The Middleman then transfers the secured asset to the buyer.\n\n"
+        "**6. ⭐ Vouch & Close**\n"
+        "Both parties confirm the transaction is successful, leave a vouch, and the ticket is closed safely."
+    )
+    embed.set_footer(text="IMS Helper Bot")
+    await interaction.response.send_message(embed=embed)
+
 @bot.tree.command(name="autovouch", description="Control the Auto-Vouch System (on / off / now / status)")
 @app_commands.describe(option="Choose 'on' to enable loop, 'off' to disable, 'now' to post immediately, 'status' to check")
 @app_commands.default_permissions(administrator=True)

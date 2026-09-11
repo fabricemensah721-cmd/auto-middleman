@@ -834,7 +834,7 @@ async def autovouch(interaction: discord.Interaction, option: Literal["on", "off
 
 @bot.tree.command(name="vouchadd", description="Adds vouches to a user")
 @app_commands.default_permissions(administrator=True) 
-async def vouchadd(interaction: discord.Interaction, member: discord.Member, amount: int, reason: Optional[str] = "No reason provided"):
+async def vouchadd(interaction: discord.Interaction, member: discord.Member, amount: int):
     vouch_data = load_vouches()
     user_id = str(member.id)
     current_vouches = vouch_data.get(user_id, 0)
@@ -842,45 +842,59 @@ async def vouchadd(interaction: discord.Interaction, member: discord.Member, amo
     vouch_data[user_id] = new_vouches
     save_vouches(vouch_data)
 
-    timestamp_str = f"<t:{int(time.time())}:f>"
+    rank_mention = member.top_role.mention if member.top_role else "@Member"
 
-    embed = discord.Embed(title="Vouches Added ✅", color=0x2b2d31)
-    embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
-    embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
-    embed.add_field(name="Amount Added", value=f"+{amount}", inline=False)
-    embed.add_field(name="Total Vouches", value=str(new_vouches), inline=False)
-    embed.add_field(name="Reason", value=reason, inline=False)
-    embed.add_field(name="Time", value=timestamp_str, inline=False)
+    embed = discord.Embed(
+        description="⭐ **User Vouch Profile**",
+        color=0x2b2d31,
+        timestamp=discord.utils.utcnow()
+    )
+    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
+    embed.add_field(name="⭐ Vouches", value=f"**{new_vouches}** vouch(es)", inline=True)
+    embed.add_field(name="👑 Current Rank", value=rank_mention, inline=True)
     embed.set_footer(text=BRAND_NAME)
 
-    apply_gif_to_embed(embed, as_thumbnail=True)
-    gif_file = create_gif_file()
-    if gif_file:
-        await interaction.response.send_message(embed=embed, file=gif_file)
-    else:
-        await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="vouchcount", description="Shows a user's vouches")
-@app_commands.default_permissions(administrator=True) 
-async def vouchcount(interaction: discord.Interaction, member: discord.Member = None):
-    member = member or interaction.user
+async def vouchcount(interaction: discord.Interaction, member: Optional[discord.Member] = None):
+    target = member or interaction.user
     vouch_data = load_vouches()
-    current_vouches = vouch_data.get(str(member.id), 0)
+    current_vouches = vouch_data.get(str(target.id), 0)
 
-    timestamp_str = f"<t:{int(time.time())}:f>"
+    rank_mention = target.top_role.mention if target.top_role else "@Member"
 
-    embed = discord.Embed(title="User Vouches 📊", color=0x2b2d31)
-    embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
-    embed.add_field(name="Total Vouches", value=str(current_vouches), inline=False)
-    embed.add_field(name="Time", value=timestamp_str, inline=False)
+    embed = discord.Embed(
+        description="⭐ **User Vouch Profile**",
+        color=0x2b2d31,
+        timestamp=discord.utils.utcnow()
+    )
+    embed.set_author(name=target.name, icon_url=target.display_avatar.url)
+    embed.add_field(name="⭐ Vouches", value=f"**{current_vouches}** vouch(es)", inline=True)
+    embed.add_field(name="👑 Current Rank", value=rank_mention, inline=True)
     embed.set_footer(text=BRAND_NAME)
 
-    apply_gif_to_embed(embed, as_thumbnail=True)
-    gif_file = create_gif_file()
-    if gif_file:
-        await interaction.response.send_message(embed=embed, file=gif_file)
-    else:
-        await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="vouch", description="Shows a user's vouches")
+async def vouch(interaction: discord.Interaction, member: Optional[discord.Member] = None):
+    target = member or interaction.user
+    vouch_data = load_vouches()
+    current_vouches = vouch_data.get(str(target.id), 0)
+
+    rank_mention = target.top_role.mention if target.top_role else "@Member"
+
+    embed = discord.Embed(
+        description="⭐ **User Vouch Profile**",
+        color=0x2b2d31,
+        timestamp=discord.utils.utcnow()
+    )
+    embed.set_author(name=target.name, icon_url=target.display_avatar.url)
+    embed.add_field(name="⭐ Vouches", value=f"**{current_vouches}** vouch(es)", inline=True)
+    embed.add_field(name="👑 Current Rank", value=rank_mention, inline=True)
+    embed.set_footer(text=BRAND_NAME)
+
+    await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="fill", description="Gives you all missing roles")
 @app_commands.default_permissions(administrator=True)

@@ -311,16 +311,26 @@ async def on_ready():
     bot.add_view(TicketControlsView())
     print(f'Logged in as {bot.user.name}')
 
-# --- Helper Function for Fake Vouches ---
+# --- Helper Function for Fake Vouches (Auto-Increments Vouch Count) ---
 def create_vouch_embed(guild: discord.Guild):
     middlemen = [m for m in guild.members if not m.bot and (any(r.id == MIDDLEMAN_ROLE_ID for r in m.roles) or m.guild_permissions.administrator)]
     
     if not middlemen:
-        mm_mention = f"<@{guild.owner_id}>"
+        mm_user = guild.owner
     else:
-        mm_mention = random.choice(middlemen).mention
+        mm_user = random.choice(middlemen)
 
-    traders = [m for m in guild.members if not m.bot and m not in middlemen]
+    if mm_user:
+        mm_mention = mm_user.mention
+        # Automatically register auto-vouch into vouches.json
+        vouch_data = load_vouches()
+        uid = str(mm_user.id)
+        vouch_data[uid] = vouch_data.get(uid, 0) + 1
+        save_vouches(vouch_data)
+    else:
+        mm_mention = f"<@{guild.owner_id}>"
+
+    traders = [m for m in guild.members if not m.bot and m.id != getattr(mm_user, 'id', None)]
     if traders and random.choice([True, False, False]): 
         trader_mention = random.choice(traders).mention
     else:
@@ -631,32 +641,41 @@ async def manageban(interaction: discord.Interaction, action: Literal["ban", "un
         await interaction.response.send_message("❌ Invalid User ID provided.", ephemeral=True)
         return
 
-    embed = discord.Embed(color=0x2b2d31)
-    embed.set_footer(text=BRAND_NAME)
+    timestamp_str = f"<t:{int(time.time())}:f>"
 
     if action == "ban":
         try:
             user = await bot.fetch_user(target_id)
             await interaction.guild.ban(user, reason=reason)
-            embed.description = f"✅ Successfully banned **{user.name}** (`{user.id}`).\n**Reason:** {reason}"
+            embed = discord.Embed(title="User Banned 🔨", color=0x2b2d31)
+            embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
+            embed.add_field(name="Target User", value=f"{user.name} ({user.id})", inline=False)
+            embed.add_field(name="Reason", value=reason, inline=False)
+            embed.add_field(name="Time", value=timestamp_str, inline=False)
+            embed.set_footer(text=BRAND_NAME)
         except discord.NotFound:
-            embed.description = f"❌ User with ID `{target_id}` was not found."
+            embed = discord.Embed(description=f"❌ User with ID `{target_id}` was not found.", color=0x2b2d31)
         except discord.Forbidden:
-            embed.description = f"❌ I do not have permission to ban user `{target_id}`."
+            embed = discord.Embed(description=f"❌ I do not have permission to ban user `{target_id}`.", color=0x2b2d31)
         except Exception as e:
-            embed.description = f"❌ Error executing ban: {e}"
+            embed = discord.Embed(description=f"❌ Error executing ban: {e}", color=0x2b2d31)
 
     elif action == "unban":
         try:
             user = await bot.fetch_user(target_id)
             await interaction.guild.unban(user, reason=reason)
-            embed.description = f"✅ Successfully unbanned **{user.name}** (`{user.id}`).\n**Reason:** {reason}"
+            embed = discord.Embed(title="User Unbanned 🔓", color=0x2b2d31)
+            embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
+            embed.add_field(name="Target User", value=f"{user.name} ({user.id})", inline=False)
+            embed.add_field(name="Reason", value=reason, inline=False)
+            embed.add_field(name="Time", value=timestamp_str, inline=False)
+            embed.set_footer(text=BRAND_NAME)
         except discord.NotFound:
-            embed.description = f"❌ Ban record or user with ID `{target_id}` was not found."
+            embed = discord.Embed(description=f"❌ Ban record or user with ID `{target_id}` was not found.", color=0x2b2d31)
         except discord.Forbidden:
-            embed.description = f"❌ I do not have permission to unban user `{target_id}`."
+            embed = discord.Embed(description=f"❌ I do not have permission to unban user `{target_id}`.", color=0x2b2d31)
         except Exception as e:
-            embed.description = f"❌ Error executing unban: {e}"
+            embed = discord.Embed(description=f"❌ Error executing unban: {e}", color=0x2b2d31)
 
     apply_gif_to_embed(embed, as_thumbnail=True)
     gif_file = create_gif_file()
@@ -669,36 +688,49 @@ async def manageban(interaction: discord.Interaction, action: Literal["ban", "un
 @app_commands.describe(
     action="Choose whether to add or remove the role",
     member="The member to assign or remove the role from",
-    role="The role to manage"
+    role="The role to manage",
+    reason="Reason for role change"
 )
 @app_commands.default_permissions(manage_roles=True)
-async def managerole(interaction: discord.Interaction, action: Literal["add", "remove"], member: discord.Member, role: discord.Role):
-    embed = discord.Embed(color=0x2b2d31)
-    embed.set_footer(text=BRAND_NAME)
-
+async def managerole(interaction: discord.Interaction, action: Literal["add", "remove"], member: discord.Member, role: discord.Role, reason: Optional[str] = "No reason provided"):
     if role >= interaction.guild.me.top_role:
-        embed.description = "❌ I cannot manage this role because it is higher than or equal to my highest role."
+        embed = discord.Embed(description="❌ I cannot manage this role because it is higher than or equal to my highest role.", color=0x2b2d31)
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
 
+    timestamp_str = f"<t:{int(time.time())}:f>"
+
     if action == "add":
         if role in member.roles:
-            embed.description = f"⚠️ {member.mention} already has the {role.mention} role."
+            embed = discord.Embed(description=f"⚠️ {member.mention} already has the {role.mention} role.", color=0x2b2d31)
         else:
             try:
-                await member.add_roles(role)
-                embed.description = f"✅ Successfully added {role.mention} to {member.mention}."
+                await member.add_roles(role, reason=reason)
+                embed = discord.Embed(title="Role Given ✅", color=0x2b2d31)
+                embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
+                embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
+                embed.add_field(name="Role", value=role.name, inline=False)
+                embed.add_field(name="Reason", value=reason, inline=False)
+                embed.add_field(name="Time", value=timestamp_str, inline=False)
+                embed.set_footer(text=BRAND_NAME)
             except discord.Forbidden:
-                embed.description = "❌ I don't have permission to add this role."
+                embed = discord.Embed(description="❌ I don't have permission to add this role.", color=0x2b2d31)
+
     elif action == "remove":
         if role not in member.roles:
-            embed.description = f"⚠️ {member.mention} does not have the {role.mention} role."
+            embed = discord.Embed(description=f"⚠️ {member.mention} does not have the {role.mention} role.", color=0x2b2d31)
         else:
             try:
-                await member.remove_roles(role)
-                embed.description = f"✅ Successfully removed {role.mention} from {member.mention}."
+                await member.remove_roles(role, reason=reason)
+                embed = discord.Embed(title="Role Removed ❌", color=0x2b2d31)
+                embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
+                embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
+                embed.add_field(name="Role", value=role.name, inline=False)
+                embed.add_field(name="Reason", value=reason, inline=False)
+                embed.add_field(name="Time", value=timestamp_str, inline=False)
+                embed.set_footer(text=BRAND_NAME)
             except discord.Forbidden:
-                embed.description = "❌ I don't have permission to remove this role."
+                embed = discord.Embed(description="❌ I don't have permission to remove this role.", color=0x2b2d31)
 
     apply_gif_to_embed(embed, as_thumbnail=True)
     gif_file = create_gif_file()
@@ -782,7 +814,7 @@ async def autovouch(interaction: discord.Interaction, option: Literal["on", "off
 
 @bot.tree.command(name="vouchadd", description="Adds vouches to a user")
 @app_commands.default_permissions(administrator=True) 
-async def vouchadd(interaction: discord.Interaction, member: discord.Member, amount: int):
+async def vouchadd(interaction: discord.Interaction, member: discord.Member, amount: int, reason: Optional[str] = "No reason provided"):
     vouch_data = load_vouches()
     user_id = str(member.id)
     current_vouches = vouch_data.get(user_id, 0)
@@ -790,12 +822,23 @@ async def vouchadd(interaction: discord.Interaction, member: discord.Member, amo
     vouch_data[user_id] = new_vouches
     save_vouches(vouch_data)
 
-    embed = discord.Embed(color=0x2b2d31)
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.add_field(name="Vouches added", value=f"+{amount} for {member.mention}", inline=False)
-    embed.add_field(name="Total Vouches", value=str(new_vouches), inline=True)
+    timestamp_str = f"<t:{int(time.time())}:f>"
+
+    embed = discord.Embed(title="Vouches Added ✅", color=0x2b2d31)
+    embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
+    embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
+    embed.add_field(name="Amount Added", value=f"+{amount}", inline=False)
+    embed.add_field(name="Total Vouches", value=str(new_vouches), inline=False)
+    embed.add_field(name="Reason", value=reason, inline=False)
+    embed.add_field(name="Time", value=timestamp_str, inline=False)
     embed.set_footer(text=BRAND_NAME)
-    await interaction.response.send_message(embed=embed)
+
+    apply_gif_to_embed(embed, as_thumbnail=True)
+    gif_file = create_gif_file()
+    if gif_file:
+        await interaction.response.send_message(embed=embed, file=gif_file)
+    else:
+        await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="vouchcount", description="Shows a user's vouches")
 @app_commands.default_permissions(administrator=True) 
@@ -804,11 +847,20 @@ async def vouchcount(interaction: discord.Interaction, member: discord.Member = 
     vouch_data = load_vouches()
     current_vouches = vouch_data.get(str(member.id), 0)
 
-    embed = discord.Embed(color=0x2b2d31)
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.add_field(name="Total Vouches", value=str(current_vouches), inline=True)
+    timestamp_str = f"<t:{int(time.time())}:f>"
+
+    embed = discord.Embed(title="User Vouches 📊", color=0x2b2d31)
+    embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
+    embed.add_field(name="Total Vouches", value=str(current_vouches), inline=False)
+    embed.add_field(name="Time", value=timestamp_str, inline=False)
     embed.set_footer(text=BRAND_NAME)
-    await interaction.response.send_message(embed=embed)
+
+    apply_gif_to_embed(embed, as_thumbnail=True)
+    gif_file = create_gif_file()
+    if gif_file:
+        await interaction.response.send_message(embed=embed, file=gif_file)
+    else:
+        await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="fill", description="Gives you all missing roles")
 @app_commands.default_permissions(administrator=True)

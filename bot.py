@@ -206,13 +206,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     bot.add_view(TicketView())
     bot.add_view(TicketControlsView())
-    
-    try:
-        synced = await bot.tree.sync()
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] {len(synced)} Slash Commands synced!")
-    except Exception as e:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Sync error: {e}")
-        
     print(f'Logged in as {bot.user.name}')
 
 # --- Helper Function for Fake Vouches ---
@@ -246,19 +239,7 @@ def create_vouch_embed(guild: discord.Guild):
         "100% legit, guided me through the whole process.",
         "Was scared of getting scammed but this MM is the goat. Vouch!",
         "Trade went perfect. Thanks for the help!",
-        "Highly recommend this server for trades. Legit.",
-        "W MM. Got my items in under 5 minutes.",
-        "Extremely professional and safe.",
-        "Quick, easy, and transparent. Will use again.",
-        "Don't hesitate to use them, 10/10 service.",
-        "First time using a middleman, they made it so simple.",
-        "Vouch! Secured a $500 deal with zero problems.",
-        "Another successful trade. Thanks guys!",
-        "Patient and helpful, even when the other guy was slow.",
-        "Top tier service. Wouldn't trade anywhere else.",
-        "Goated MM! Got my money instantly.",
-        "Very fast response time and smooth handover.",
-        "Absolute legend, saved me from a potential scam earlier, smooth trade here."
+        "Highly recommend this server for trades. Legit."
     ]
     
     review_text = random.choice(reviews)
@@ -370,21 +351,19 @@ async def on_member_ban(guild, user):
     await check_nuke(guild, actor, 'ban')
 
 # --- 7. General Commands ---
+
+# 🔥 GEFIXTER SYNC COMMAND 🔥 (Ohne Delay, sofortiger Sync auf diesen einen Server)
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def sync(ctx):
+    msg = await ctx.send("🔄 Syncing commands... (Das dauert jetzt nur eine Sekunde)")
     try:
-        # 1. Clear global commands so they don't show up twice
-        bot.tree.clear_commands(guild=None)
-        await bot.tree.sync(guild=None)
-        
-        # 2. Sync commands only to this specific server
+        # Kopiert alle Slash Commands SOFORT auf diesen Server
         bot.tree.copy_global_to(guild=ctx.guild)
         synced = await bot.tree.sync(guild=ctx.guild)
-        
-        await ctx.send(f"✅ {len(synced)} slash commands have been synced! (Duplicates have been removed, please restart your Discord app if they still show up twice).")
+        await msg.edit(content=f"✅ {len(synced)} Slash Commands wurden **sofort** synchronisiert!")
     except Exception as e:
-        await ctx.send(f"❌ Error while syncing: {e}")
+        await msg.edit(content=f"❌ Error beim Sync: {e}")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -417,7 +396,7 @@ async def setverifytext(ctx, *, new_text: str):
 async def verify(ctx, member: discord.Member):
     config = load_config()
     
-    raw_text = config.get("verify_text", "**Target:** {member}\n\nIf you're seeing this, you've likely just been scammed — but this doesn't end how you think.\n\nMost people in this server started out the same way. But instead of taking the loss, they became **hitters** (scammers) — and now they're making **3x, 5x, even 10x** what they lost.\n\nThis is your chance to turn a setback into serious profit.\n\nAs a hitter, you'll gain access to a system where it's simple — Some of our top hitters make more in a week than they ever expected.\n\n**You now have access to the staff chat and other hitter channels.** Head to the main guide channel to learn how to start.\n\n⏰ Every minute you wait is profit missed.\n\nNeed help getting started? Ask in the support system channel.\n\nYou've already been pulled in — now it's time to flip the script and come out ahead.")
+    raw_text = config.get("verify_text", "**Target:** {member}\n\nIf you're seeing this, you've likely just been scammed...")
     formatted_text = raw_text.replace("{member}", member.mention)
 
     embed = discord.Embed(color=0x2b2d31)
@@ -453,7 +432,7 @@ async def close(ctx):
         await asyncio.sleep(5)
         await ctx.channel.delete()
 
-# --- 8. Unified Slash Command ---
+# --- 8. Slash Commands (Diese sind alle noch da!) ---
 @bot.tree.command(name="autovouch", description="Control the Auto-Vouch System (on / off / now / status)")
 @app_commands.describe(option="Choose 'on' to enable loop, 'off' to disable, 'now' to post immediately, 'status' to check")
 @app_commands.default_permissions(administrator=True)

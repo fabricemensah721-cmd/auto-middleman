@@ -9,7 +9,7 @@ from flask import Flask
 from threading import Thread
 import discord
 from discord.ext import commands, tasks
-from discord.ui import Button, View
+from discord.ui import Button, View, Select
 import asyncio
 from discord import app_commands
 
@@ -159,13 +159,45 @@ class TicketControlsView(View):
         await asyncio.sleep(5)
         await interaction.channel.delete()
 
-# --- 4. Ticket Panel Creation ---
-class TicketView(View):
+# --- 4. Dropdown Ticket Panel System ---
+class TicketSelect(Select):
     def __init__(self):
-        super().__init__(timeout=None)
+        options = [
+            discord.SelectOption(
+                label="Small Trade (< $25)",
+                description="Trade value under $25 USD",
+                emoji="💵",
+                value="small"
+            ),
+            discord.SelectOption(
+                label="Medium Trade ($25 - $50)",
+                description="Trade value between $25 and $50 USD",
+                emoji="💸",
+                value="medium"
+            ),
+            discord.SelectOption(
+                label="High Tier Trade ($50 - $100)",
+                description="Trade value between $50 and $100 USD",
+                emoji="💰",
+                value="high"
+            ),
+            discord.SelectOption(
+                label="Whale Trade ($100+)",
+                description="High-value trade exceeding $100 USD",
+                emoji="💎",
+                value="whale"
+            ),
+        ]
+        super().__init__(
+            placeholder="Select your trade value bracket...",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="ticket_dropdown_select"
+        )
 
-    @discord.ui.button(label="Request Middleman", style=discord.ButtonStyle.green, custom_id="open_ticket")
-    async def ticket_button(self, interaction: discord.Interaction, button: Button):
+    async def callback(self, interaction: discord.Interaction):
+        selected_value = self.values[0]
         middleman_role = interaction.guild.get_role(MIDDLEMAN_ROLE_ID)
 
         overwrites = {
@@ -180,15 +212,20 @@ class TicketView(View):
         category = interaction.guild.get_channel(TICKET_CATEGORY_ID)
 
         ticket_channel = await interaction.guild.create_text_channel(
-            name=f"ticket-{interaction.user.name}",
+            name=f"ticket-{selected_value}-{interaction.user.name}",
             category=category,
             overwrites=overwrites
         )
 
         await interaction.response.send_message(f"Your ticket has been created: {ticket_channel.mention}", ephemeral=True)
 
-        embed1 = discord.Embed(title="New Trade Ticket", color=0x2b2d31)
-        embed1.description = "Thank you for using our middleman services.\n\nPlease wait for a middleman to assist you.\n\nIf you have any questions, please let a staff member know."
+        embed1 = discord.Embed(title="New Trade Ticket", color=0x3498db)
+        embed1.description = (
+            f"Thank you for using our middleman services.\n"
+            f"**Selected Bracket:** {selected_value.capitalize()} Trade\n\n"
+            "Please wait for a middleman to assist you.\n"
+            "If you have any questions, please let a staff member know."
+        )
         embed1.set_footer(text="IMS Helper Bot")
 
         embed2 = discord.Embed(title="Trade Parties", color=0x2b2d31)
@@ -200,6 +237,11 @@ class TicketView(View):
             embeds=[embed1, embed2],
             view=TicketControlsView()
         )
+
+class TicketView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(TicketSelect())
 
 # --- 5. Bot Configuration & Events ---
 intents = discord.Intents.default()
@@ -370,21 +412,35 @@ async def sync(ctx):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def setup_ticket(ctx):
-    embed = discord.Embed(color=0x2b2d31)
+async def setup_ticket(ctx, image_url: str = None):
+    embed = discord.Embed(
+        title="💠 MM2 Market — Official Middleman Ticket Panel",
+        color=0x3498db
+    )
     embed.description = (
-        "**Middleman Service**\n\n"
-        "• To request a middleman from this server, click the blue \"Request Middleman\" button on this message.\n\n"
-        "**How does middleman work?**\n"
-        "• Example: Trade is Frost Dragon for Corrupt.\n"
-        "• Trader #1 gives Frost Dragon to middleman.\n"
-        "• Trader #2 gives Corrupt to middleman.\n"
-        "• Middleman gives the respective pets to each trader.\n\n"
-        "⚠️ **DISCLAIMER!**\n"
-        "You must both agree on the deal before using a middleman. Troll tickets will have consequences."
+        "**Ready to conduct a secure, protected trade?**\n\n"
+        "Create a private Middleman Escrow ticket by selecting your estimated trade value from the dropdown below.\n\n"
+        "📋 **Pre-Ticket Checklist:**\n"
+        "• Ensure both you and your trading partner are online and ready to trade.\n"
+        "• Have your exact Murder Mystery 2 items or cash value agreed upon.\n"
+        "• Ensure you have agreed on the payment method (Wise, Cash App, PayPal, Robux, Crypto, etc.).\n\n"
+        "🛡️ **What happens next?**\n"
+        "1. A dedicated private channel under the Middleman category will be generated.\n"
+        "2. An official Middleman will claim your ticket and handle the escrow process from start to finish.\n"
+        "3. Automated vouches and verification roles are issued upon successful completion.\n\n"
+        "⚠️ **Select your trade value range below to begin:**"
     )
     embed.set_footer(text="IMS Helper Bot")
-    await ctx.send(embed=embed, view=TicketView())
+
+    if ctx.message.attachments:
+        file = await ctx.message.attachments[0].to_file()
+        embed.set_image(url=f"attachment://{file.filename}")
+        await ctx.send(embed=embed, view=TicketView(), file=file)
+    elif image_url:
+        embed.set_image(url=image_url)
+        await ctx.send(embed=embed, view=TicketView())
+    else:
+        await ctx.send(embed=embed, view=TicketView())
 
 @bot.command()
 @commands.has_permissions(administrator=True)

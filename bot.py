@@ -166,11 +166,16 @@ class TicketView(View):
 
     @discord.ui.button(label="Request Middleman", style=discord.ButtonStyle.green, custom_id="open_ticket")
     async def ticket_button(self, interaction: discord.Interaction, button: Button):
+        middleman_role = interaction.guild.get_role(MIDDLEMAN_ROLE_ID)
+
         overwrites = {
             interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False, send_messages=False),
             interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
             interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
+
+        if middleman_role:
+            overwrites[middleman_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
         category = interaction.guild.get_channel(TICKET_CATEGORY_ID)
 

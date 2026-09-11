@@ -17,11 +17,11 @@ from discord import app_commands
 MIDDLEMAN_ROLE_ID = 1411386035551867044
 TICKET_CATEGORY_ID = 1415896804024651908
 MEMBER_ROLE_ID = 1519990840406179840
-AUTO_VOUCH_CHANNEL_ID = 1546151910199922719 
+AUTO_VOUCH_CHANNEL_ID = 1546151910199922719
 
 BRAND_NAME = "IMS Official"
 GIF_FILE_PATH = "IMG_1153_2.gif"
-GIF_URL = None  # Kann optional mit einem Direktlink (z. B. "https://.../IMG_1153_2.gif") befüllt werden
+GIF_URL = None  # Can optionally be filled with a direct link (e.g. "https://.../IMG_1153_2.gif")
 
 # --- 1. Web Server for Hosting ---
 app = Flask('')
@@ -743,146 +743,25 @@ async def fill(interaction: discord.Interaction):
     embed.set_footer(text=BRAND_NAME)
     await interaction.response.send_message(embed=embed)
 
-    async def process_fill():
-        try:
-            await member.add_roles(*roles_to_add, reason="Fill command executed")
-            embed.title = "✅ Roles assigned"
-            embed.description = f"🛠️ **{len(roles_to_add)}** role(s) were assigned to {member.mention}."
-            await interaction.edit_original_response(embed=embed)
-        except discord.Forbidden:
-            embed.title = "❌ Error"
-            embed.description = "Missing permissions to assign roles."
-            await interaction.edit_original_response(embed=embed)
+    try:
+        await member.add_roles(*roles_to_add, reason="Fill command executed")
+        embed.title = "✅ Roles assigned"
+        embed.description = f"🛠️ **{len(roles_to_add)}** role(s) were assigned to {member.mention}."
+        await interaction.edit_original_response(embed=embed)
+    except discord.Forbidden:
+        embed.title = "❌ Error"
+        embed.description = "I don't have permission to assign some or all of these roles."
+        await interaction.edit_original_response(embed=embed)
+    except Exception as e:
+        embed.title = "❌ Error"
+        embed.description = f"An error occurred: {e}"
+        await interaction.edit_original_response(embed=embed)
 
-    bot.loop.create_task(process_fill())
-
-@bot.tree.command(name="temp", description="Removes or restores temporary roles")
-@app_commands.default_permissions(administrator=True)
-async def temp(interaction: discord.Interaction):
-    member = interaction.user
-    temp_data = load_temp_roles()
-    user_id = str(member.id)
-
-    if user_id in temp_data and temp_data[user_id]:
-        roles_to_add = []
-        member_role = interaction.guild.get_role(MEMBER_ROLE_ID)
-
-        for role_id in temp_data[user_id]:
-            role = interaction.guild.get_role(role_id)
-            if role and (not member_role or role.position >= member_role.position) and role not in member.roles:
-                roles_to_add.append(role)
-
-        if not roles_to_add:
-            del temp_data[user_id]
-            save_temp_roles(temp_data)
-            await interaction.response.send_message("❌ No restorable roles found.", ephemeral=True)
-            return
-
-        embed = discord.Embed(color=0x2b2d31, title="⏳ Restoring roles...")
-        embed.set_footer(text=BRAND_NAME)
-        await interaction.response.send_message(embed=embed)
-
-        async def process_restore():
-            try:
-                await member.add_roles(*roles_to_add, reason="Temp command executed")
-                del temp_data[user_id]
-                save_temp_roles(temp_data)
-                embed.title = "✅ Roles restored"
-                embed.description = f"🛠️ **{len(roles_to_add)}** role(s) restored."
-                await interaction.edit_original_response(embed=embed)
-            except discord.Forbidden:
-                embed.title = "❌ Error"
-                embed.description = "Missing permissions to assign roles."
-                await interaction.edit_original_response(embed=embed)
-
-        bot.loop.create_task(process_restore())
-
+# --- 9. Start Bot ---
+if __name__ == "__main__":
+    keep_alive()
+    TOKEN = os.getenv("DISCORD_TOKEN")  # Uses 'DISCORD_TOKEN' environment variable or directly your token string
+    if TOKEN:
+        bot.run(TOKEN)
     else:
-        roles_to_remove = []
-        protected_roles = [MEMBER_ROLE_ID, MIDDLEMAN_ROLE_ID]
-        saved_role_ids = []
-        
-        for role in member.roles:
-            if role.name == "@everyone" or role.managed or role.id in protected_roles or role >= interaction.guild.me.top_role:
-                continue
-            roles_to_remove.append(role)
-            saved_role_ids.append(role.id)
-            
-        if not roles_to_remove:
-            await interaction.response.send_message("❌ No removable roles found.", ephemeral=True)
-            return
-
-        temp_data[user_id] = saved_role_ids
-        save_temp_roles(temp_data)
-
-        embed = discord.Embed(color=0x2b2d31, title="⏳ Removing roles...")
-        embed.set_footer(text=BRAND_NAME)
-        await interaction.response.send_message(embed=embed)
-
-        async def process_temp_remove():
-            try:
-                await member.remove_roles(*roles_to_remove, reason="Temp command executed")
-                embed.title = "✅ Roles removed"
-                embed.description = f"🛠️ **{len(roles_to_remove)}** role(s) temporarily removed."
-                await interaction.edit_original_response(embed=embed)
-            except discord.Forbidden:
-                embed.title = "❌ Error"
-                embed.description = "Missing permissions to remove roles."
-                await interaction.edit_original_response(embed=embed)
-
-        bot.loop.create_task(process_temp_remove())
-
-@bot.tree.command(name="managerole", description="Assigns a role to a user with a detailed log")
-@app_commands.describe(member="The user to receive the role", role="The role to give", reason="The reason for the role")
-@app_commands.default_permissions(manage_roles=True)
-async def managerole(interaction: discord.Interaction, member: discord.Member, role: discord.Role, reason: str = "No reason provided"):
-    try:
-        await member.add_roles(role, reason=reason)
-        
-        embed = discord.Embed(title="Role Given ✅", color=0x2b2d31, timestamp=discord.utils.utcnow())
-        embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
-        embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
-        embed.add_field(name="Role", value=role.name, inline=False)
-        embed.add_field(name="Reason", value=reason, inline=False)
-        embed.add_field(name="Time", value=f"<t:{int(time.time())}:F>", inline=False)
-        embed.set_footer(text=BRAND_NAME)
-        apply_gif_to_embed(embed, as_thumbnail=True)
-
-        gif_file = create_gif_file()
-        if gif_file:
-            await interaction.response.send_message(embed=embed, file=gif_file)
-        else:
-            await interaction.response.send_message(embed=embed)
-        
-    except discord.Forbidden:
-        await interaction.response.send_message("❌ I do not have the required permissions (or the role is higher than mine) to do this.", ephemeral=True)
-
-@bot.tree.command(name="manageban", description="Bans a user with a detailed log")
-@app_commands.describe(member="The user to ban", reason="The reason for the ban")
-@app_commands.default_permissions(ban_members=True)
-async def manageban(interaction: discord.Interaction, member: discord.Member, reason: str = "No reason provided"):
-    try:
-        await member.ban(reason=reason)
-        
-        embed = discord.Embed(title="User Banned 🔨", color=0x2b2d31, timestamp=discord.utils.utcnow())
-        embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
-        embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
-        embed.add_field(name="Action", value="Ban", inline=False)
-        embed.add_field(name="Reason", value=reason, inline=False)
-        embed.add_field(name="Time", value=f"<t:{int(time.time())}:F>", inline=False)
-        embed.set_footer(text=BRAND_NAME)
-        apply_gif_to_embed(embed, as_thumbnail=True)
-
-        gif_file = create_gif_file()
-        if gif_file:
-            await interaction.response.send_message(embed=embed, file=gif_file)
-        else:
-            await interaction.response.send_message(embed=embed)
-        
-    except discord.Forbidden:
-        await interaction.response.send_message("❌ I do not have the required permissions to ban this user.", ephemeral=True)
-
-# --- 9. Start the Bot ---
-keep_alive()
-token = os.environ.get("DISCORD_TOKEN")
-bot.run(token)
+        print("❌ Token not found! Please set the 'DISCORD_TOKEN' environment variable or insert your token directly.")

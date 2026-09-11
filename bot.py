@@ -19,7 +19,7 @@ TICKET_CATEGORY_ID = 1415896804024651908
 MEMBER_ROLE_ID = 1519990840406179840
 AUTO_VOUCH_CHANNEL_ID = 1546151910199922719 
 
-# Dateiname oder URL des GIFs
+BRAND_NAME = "IMS Official"
 GIF_FILE_PATH = "IMG_1153_2.gif"
 GIF_URL = None  # Kann optional mit einem Direktlink (z. B. "https://.../IMG_1153_2.gif") befüllt werden
 
@@ -87,7 +87,7 @@ def apply_gif_to_embed(embed: discord.Embed, as_thumbnail: bool = True):
         else:
             embed.set_image(url=f"attachment://{GIF_FILE_PATH}")
 
-def get_gif_file():
+def create_gif_file():
     if not GIF_URL and os.path.exists(GIF_FILE_PATH):
         return discord.File(GIF_FILE_PATH, filename=GIF_FILE_PATH)
     return None
@@ -115,10 +115,10 @@ class VerifyView(View):
         
         embed = discord.Embed(color=0x2b2d31)
         embed.description = f"✅ Success! {interaction.user.mention} has been successfully verified."
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         apply_gif_to_embed(embed, as_thumbnail=True)
         
-        gif_file = get_gif_file()
+        gif_file = create_gif_file()
         if gif_file:
             await interaction.response.edit_message(content="", embed=embed, view=None, attachments=[gif_file])
         else:
@@ -128,10 +128,10 @@ class VerifyView(View):
     async def decline_button(self, interaction: discord.Interaction, button: Button):
         embed = discord.Embed(color=0x2b2d31)
         embed.description = f"❌ {interaction.user.mention} has declined the verification process."
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         apply_gif_to_embed(embed, as_thumbnail=True)
         
-        gif_file = get_gif_file()
+        gif_file = create_gif_file()
         if gif_file:
             await interaction.response.edit_message(content="", embed=embed, view=None, attachments=[gif_file])
         else:
@@ -159,10 +159,10 @@ class TicketControlsView(View):
 
         embed = discord.Embed(color=0x2b2d31)
         embed.description = f"🛡️ {interaction.user.mention} has claimed this ticket."
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         apply_gif_to_embed(embed, as_thumbnail=True)
         
-        gif_file = get_gif_file()
+        gif_file = create_gif_file()
         if gif_file:
             await interaction.channel.send(embed=embed, file=gif_file)
         else:
@@ -183,10 +183,10 @@ class TicketControlsView(View):
 
         embed = discord.Embed(color=0x2b2d31)
         embed.description = f"🔓 {interaction.user.mention} has unclaimed this ticket."
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         apply_gif_to_embed(embed, as_thumbnail=True)
 
-        gif_file = get_gif_file()
+        gif_file = create_gif_file()
         if gif_file:
             await interaction.channel.send(embed=embed, file=gif_file)
         else:
@@ -200,7 +200,7 @@ class TicketControlsView(View):
 
         embed = discord.Embed(color=0x2b2d31)
         embed.description = "🔒 This ticket will be closed and deleted in 5 seconds..."
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         await interaction.channel.send(embed=embed)
         await asyncio.sleep(5)
         await interaction.channel.delete()
@@ -265,21 +265,21 @@ class TicketSelect(Select):
 
         await interaction.response.send_message(f"Your ticket has been created: {ticket_channel.mention}", ephemeral=True)
 
-        embed1 = discord.Embed(title="New Trade Ticket", color=0x3498db)
+        embed1 = discord.Embed(title=f"💠 {BRAND_NAME} — Trade Ticket", color=0x3498db)
         embed1.description = (
             f"Thank you for using our middleman services.\n"
             f"**Selected Bracket:** {selected_value.capitalize()} Trade\n\n"
             "Please wait for a middleman to assist you.\n"
             "If you have any questions, please let a staff member know."
         )
-        embed1.set_footer(text="IMS Helper Bot")
+        embed1.set_footer(text=BRAND_NAME)
         apply_gif_to_embed(embed1, as_thumbnail=True)
 
         embed2 = discord.Embed(title="Trade Parties", color=0x2b2d31)
         embed2.description = f"**Requester:**\n{interaction.user.mention}"
-        embed2.set_footer(text="IMS Helper Bot")
+        embed2.set_footer(text=BRAND_NAME)
 
-        gif_file = get_gif_file()
+        gif_file = create_gif_file()
         if gif_file:
             await ticket_channel.send(
                 content=f"{interaction.user.mention} <@&{MIDDLEMAN_ROLE_ID}>",
@@ -362,7 +362,7 @@ def create_vouch_embed(guild: discord.Guild):
         f"{stars}\n"
         f"*{review_text}*"
     )
-    embed.set_footer(text=f"IMS Helper Bot • trade #{trade_id} | {current_time}")
+    embed.set_footer(text=f"{BRAND_NAME} • trade #{trade_id} | {current_time}")
     apply_gif_to_embed(embed, as_thumbnail=True)
     
     return embed
@@ -376,12 +376,11 @@ async def auto_vouch_loop():
         return
     
     embed = create_vouch_embed(channel.guild)
-    gif_file = get_gif_file()
+    gif_file = create_gif_file()
     if gif_file:
         await channel.send(embed=embed, file=gif_file)
     else:
         await channel.send(embed=embed)
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Auto-Vouch successfully posted in channel {channel.name}!")
 
 @auto_vouch_loop.before_loop
 async def before_auto_vouch():
@@ -426,10 +425,10 @@ async def check_nuke(guild, user, action_type):
                     f"**Action:** The bot banned {user.mention} (`{user.id}`).\n"
                     f"**Reason:** Limit for `{action_type}` exceeded within {TIME_WINDOW}s."
                 )
-                embed.set_footer(text="IMS Helper Bot")
+                embed.set_footer(text=BRAND_NAME)
                 apply_gif_to_embed(embed, as_thumbnail=True)
                 
-                gif_file = get_gif_file()
+                gif_file = create_gif_file()
                 if gif_file:
                     await guild.owner.send(embed=embed, file=gif_file)
                 else:
@@ -481,7 +480,7 @@ async def sync(ctx):
 @commands.has_permissions(administrator=True)
 async def setup_ticket(ctx, image_url: str = None):
     embed = discord.Embed(
-        title="💠 MM2 Market — Official Middleman Ticket Panel",
+        title=f"💠 {BRAND_NAME} — Official Middleman Ticket Panel",
         color=0x3498db
     )
     embed.description = (
@@ -489,7 +488,7 @@ async def setup_ticket(ctx, image_url: str = None):
         "Create a private Middleman Escrow ticket by selecting your estimated trade value from the dropdown below.\n\n"
         "📋 **Pre-Ticket Checklist:**\n"
         "• Ensure both you and your trading partner are online and ready to trade.\n"
-        "• Have your exact Murder Mystery 2 items or cash value agreed upon.\n"
+        "• Have your exact items or cash value agreed upon.\n"
         "• Ensure you have agreed on the payment method (Wise, Cash App, PayPal, Robux, Crypto, etc.).\n\n"
         "🛡️ **What happens next?**\n"
         "1. A dedicated private channel under the Middleman category will be generated.\n"
@@ -497,7 +496,7 @@ async def setup_ticket(ctx, image_url: str = None):
         "3. Automated vouches and verification roles are issued upon successful completion.\n\n"
         "⚠️ **Select your trade value range below to begin:**"
     )
-    embed.set_footer(text="IMS Helper Bot")
+    embed.set_footer(text=BRAND_NAME)
 
     if ctx.message.attachments:
         file = await ctx.message.attachments[0].to_file()
@@ -508,7 +507,7 @@ async def setup_ticket(ctx, image_url: str = None):
         await ctx.send(embed=embed, view=TicketView())
     else:
         apply_gif_to_embed(embed, as_thumbnail=False)
-        gif_file = get_gif_file()
+        gif_file = create_gif_file()
         if gif_file:
             await ctx.send(embed=embed, view=TicketView(), file=gif_file)
         else:
@@ -523,10 +522,10 @@ async def setverifytext(ctx, *, new_text: str):
     
     embed = discord.Embed(color=0x2b2d31)
     embed.description = f"✅ The verify text has been updated!\n\n**Preview:**\n{new_text}"
-    embed.set_footer(text="IMS Helper Bot")
+    embed.set_footer(text=BRAND_NAME)
     apply_gif_to_embed(embed, as_thumbnail=True)
 
-    gif_file = get_gif_file()
+    gif_file = create_gif_file()
     if gif_file:
         await ctx.send(embed=embed, file=gif_file)
     else:
@@ -542,10 +541,10 @@ async def verify(ctx, member: discord.Member):
 
     embed = discord.Embed(color=0x2b2d31)
     embed.description = formatted_text
-    embed.set_footer(text="IMS Helper Bot")
+    embed.set_footer(text=BRAND_NAME)
     apply_gif_to_embed(embed, as_thumbnail=False)
 
-    gif_file = get_gif_file()
+    gif_file = create_gif_file()
     if gif_file:
         await ctx.send(
             embed=embed, 
@@ -564,12 +563,12 @@ async def add(ctx, member: discord.Member):
         await ctx.channel.set_permissions(member, read_messages=True, send_messages=True)
         embed = discord.Embed(color=0x2b2d31)
         embed.description = f"✅ {member.mention} has been added to the ticket!"
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         await ctx.send(embed=embed)
     else:
         embed = discord.Embed(color=0x2b2d31)
         embed.description = "❌ This command can only be used inside a ticket channel!"
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         await ctx.send(embed=embed)
 
 @bot.command()
@@ -577,7 +576,7 @@ async def close(ctx):
     if "ticket" in ctx.channel.name:
         embed = discord.Embed(color=0x2b2d31)
         embed.description = "🔒 The ticket will be closed and deleted in 5 seconds..."
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         await ctx.send(embed=embed)
         await asyncio.sleep(5)
         await ctx.channel.delete()
@@ -586,7 +585,7 @@ async def close(ctx):
 @bot.tree.command(name="tos", description="Displays the Middleman Terms of Service")
 async def tos(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="📋 Middleman Terms of Service",
+        title=f"📋 {BRAND_NAME} — Terms of Service",
         color=0x3498db,
         timestamp=discord.utils.utcnow()
     )
@@ -608,10 +607,10 @@ async def tos(interaction: discord.Interaction):
         "**8. ✅ Binding Agreement**\n\n"
         "By initiating a middleman ticket or participating in a deal, you acknowledge and agree to comply with all terms stated in this document."
     )
-    embed.set_footer(text="Powered by IMS Helper Bot")
+    embed.set_footer(text=f"Powered by {BRAND_NAME}")
     apply_gif_to_embed(embed, as_thumbnail=True)
 
-    gif_file = get_gif_file()
+    gif_file = create_gif_file()
     if gif_file:
         await interaction.response.send_message(embed=embed, file=gif_file)
     else:
@@ -620,7 +619,7 @@ async def tos(interaction: discord.Interaction):
 @bot.tree.command(name="mmexplain", description="Explains how the Middleman service works step-by-step")
 async def mmexplain(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="🛡️ How Middleman Service Works",
+        title=f"🛡️ How {BRAND_NAME} Middleman Service Works",
         color=0x2b2d31,
         timestamp=discord.utils.utcnow()
     )
@@ -639,10 +638,10 @@ async def mmexplain(interaction: discord.Interaction):
         "**6. ⭐ Vouch & Close**\n"
         "Both parties confirm the transaction is successful, leave a vouch, and the ticket is closed safely."
     )
-    embed.set_footer(text="IMS Helper Bot")
+    embed.set_footer(text=BRAND_NAME)
     apply_gif_to_embed(embed, as_thumbnail=True)
 
-    gif_file = get_gif_file()
+    gif_file = create_gif_file()
     if gif_file:
         await interaction.response.send_message(embed=embed, file=gif_file)
     else:
@@ -661,7 +660,7 @@ async def autovouch(interaction: discord.Interaction, option: Literal["on", "off
             )
         else:
             embed = discord.Embed(color=0xf1c40f, description="⚠️ The Auto-Vouch system is already running.")
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     elif option == "off":
@@ -670,12 +669,12 @@ async def autovouch(interaction: discord.Interaction, option: Literal["on", "off
             embed = discord.Embed(color=0xe74c3c, description="🛑 **Auto-Vouch System Disabled!**")
         else:
             embed = discord.Embed(color=0xf1c40f, description="⚠️ The Auto-Vouch system is not running.")
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     elif option == "now":
         embed = create_vouch_embed(interaction.guild)
-        gif_file = get_gif_file()
+        gif_file = create_gif_file()
         if gif_file:
             await interaction.response.send_message(embed=embed, file=gif_file)
         else:
@@ -687,7 +686,7 @@ async def autovouch(interaction: discord.Interaction, option: Literal["on", "off
         embed = discord.Embed(color=0x2b2d31, title="📊 Auto-Vouch System Status")
         embed.add_field(name="State", value=status_str, inline=False)
         embed.add_field(name="Target Channel", value=f"<#{AUTO_VOUCH_CHANNEL_ID}>", inline=False)
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="vouchadd", description="Adds vouches to a user")
@@ -704,7 +703,7 @@ async def vouchadd(interaction: discord.Interaction, member: discord.Member, amo
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.add_field(name="Vouches added", value=f"+{amount} for {member.mention}", inline=False)
     embed.add_field(name="Total Vouches", value=str(new_vouches), inline=True)
-    embed.set_footer(text="IMS Helper Bot")
+    embed.set_footer(text=BRAND_NAME)
     await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="vouchcount", description="Shows a user's vouches")
@@ -717,7 +716,7 @@ async def vouchcount(interaction: discord.Interaction, member: discord.Member = 
     embed = discord.Embed(color=0x2b2d31)
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.add_field(name="Total Vouches", value=str(current_vouches), inline=True)
-    embed.set_footer(text="IMS Helper Bot")
+    embed.set_footer(text=BRAND_NAME)
     await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="fill", description="Gives you all missing roles")
@@ -741,7 +740,7 @@ async def fill(interaction: discord.Interaction):
 
     embed = discord.Embed(color=0x2b2d31, title="⏳ Assigning roles...")
     embed.description = f"🛠️ Assigning **{len(roles_to_add)}** roles to {member.mention}..."
-    embed.set_footer(text="IMS Helper Bot")
+    embed.set_footer(text=BRAND_NAME)
     await interaction.response.send_message(embed=embed)
 
     async def process_fill():
@@ -780,7 +779,7 @@ async def temp(interaction: discord.Interaction):
             return
 
         embed = discord.Embed(color=0x2b2d31, title="⏳ Restoring roles...")
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         await interaction.response.send_message(embed=embed)
 
         async def process_restore():
@@ -817,7 +816,7 @@ async def temp(interaction: discord.Interaction):
         save_temp_roles(temp_data)
 
         embed = discord.Embed(color=0x2b2d31, title="⏳ Removing roles...")
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         await interaction.response.send_message(embed=embed)
 
         async def process_temp_remove():
@@ -846,10 +845,10 @@ async def managerole(interaction: discord.Interaction, member: discord.Member, r
         embed.add_field(name="Role", value=role.name, inline=False)
         embed.add_field(name="Reason", value=reason, inline=False)
         embed.add_field(name="Time", value=f"<t:{int(time.time())}:F>", inline=False)
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         apply_gif_to_embed(embed, as_thumbnail=True)
 
-        gif_file = get_gif_file()
+        gif_file = create_gif_file()
         if gif_file:
             await interaction.response.send_message(embed=embed, file=gif_file)
         else:
@@ -871,10 +870,10 @@ async def manageban(interaction: discord.Interaction, member: discord.Member, re
         embed.add_field(name="Action", value="Ban", inline=False)
         embed.add_field(name="Reason", value=reason, inline=False)
         embed.add_field(name="Time", value=f"<t:{int(time.time())}:F>", inline=False)
-        embed.set_footer(text="IMS Helper Bot")
+        embed.set_footer(text=BRAND_NAME)
         apply_gif_to_embed(embed, as_thumbnail=True)
 
-        gif_file = get_gif_file()
+        gif_file = create_gif_file()
         if gif_file:
             await interaction.response.send_message(embed=embed, file=gif_file)
         else:

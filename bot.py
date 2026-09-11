@@ -230,7 +230,6 @@ def create_vouch_embed(guild: discord.Guild):
     else:
         trader_mention = f"<@{random.randint(100000000000000000, 999999999999999999)}>"
 
-    # Strictly use "In-Game Items" on the left side
     trade_items = ["In-Game Items"]
     payment_methods = ["PayPal", "CashApp", "Crypto", "Bank Transfer", "Apple Pay", "Venmo"]
 
@@ -629,6 +628,44 @@ async def temp(interaction: discord.Interaction):
                 await interaction.edit_original_response(embed=embed)
 
         bot.loop.create_task(process_temp_remove())
+
+@bot.tree.command(name="managerole", description="Assigns a role to a user with a detailed log")
+@app_commands.describe(member="The user to receive the role", role="The role to give", reason="The reason for the role")
+@app_commands.default_permissions(manage_roles=True)
+async def managerole(interaction: discord.Interaction, member: discord.Member, role: discord.Role, reason: str = "No reason provided"):
+    try:
+        await member.add_roles(role, reason=reason)
+        
+        embed = discord.Embed(title="🔧 Role Assigned", color=0x3498db, timestamp=discord.utils.utcnow())
+        embed.add_field(name="Action By", value=interaction.user.mention, inline=False)
+        embed.add_field(name="Target User", value=member.mention, inline=False)
+        embed.add_field(name="Given Role", value=role.mention, inline=False)
+        embed.add_field(name="Reason", value=reason, inline=False)
+        embed.set_footer(text="IMS Helper Bot")
+        
+        await interaction.response.send_message(embed=embed)
+        
+    except discord.Forbidden:
+        await interaction.response.send_message("❌ I do not have the required permissions (or the role is higher than mine) to do this.", ephemeral=True)
+
+@bot.tree.command(name="manageban", description="Bans a user with a detailed log")
+@app_commands.describe(member="The user to ban", reason="The reason for the ban")
+@app_commands.default_permissions(ban_members=True)
+async def manageban(interaction: discord.Interaction, member: discord.Member, reason: str = "No reason provided"):
+    try:
+        await member.ban(reason=reason)
+        
+        embed = discord.Embed(title="🔨 User Banned", color=0xe74c3c, timestamp=discord.utils.utcnow())
+        embed.add_field(name="Action By", value=interaction.user.mention, inline=False)
+        embed.add_field(name="Target User", value=member.mention, inline=False)
+        embed.add_field(name="Action", value="Ban", inline=False)
+        embed.add_field(name="Reason", value=reason, inline=False)
+        embed.set_footer(text="IMS Helper Bot")
+        
+        await interaction.response.send_message(embed=embed)
+        
+    except discord.Forbidden:
+        await interaction.response.send_message("❌ I do not have the required permissions to ban this user.", ephemeral=True)
 
 # --- 9. Start the Bot ---
 keep_alive()

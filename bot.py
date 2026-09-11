@@ -352,18 +352,18 @@ async def on_member_ban(guild, user):
 
 # --- 7. General Commands ---
 
-# 🔥 GEFIXTER SYNC COMMAND 🔥 (Ohne Delay, sofortiger Sync auf diesen einen Server)
+# 🔥 FIXED SYNC COMMAND 🔥 (No delay, instant sync to this specific server)
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def sync(ctx):
-    msg = await ctx.send("🔄 Syncing commands... (Das dauert jetzt nur eine Sekunde)")
+    msg = await ctx.send("🔄 Syncing commands... (This will only take a second)")
     try:
-        # Kopiert alle Slash Commands SOFORT auf diesen Server
+        # Copies all slash commands IMMEDIATELY to this server
         bot.tree.copy_global_to(guild=ctx.guild)
         synced = await bot.tree.sync(guild=ctx.guild)
-        await msg.edit(content=f"✅ {len(synced)} Slash Commands wurden **sofort** synchronisiert!")
+        await msg.edit(content=f"✅ {len(synced)} Slash Commands were **instantly** synced!")
     except Exception as e:
-        await msg.edit(content=f"❌ Error beim Sync: {e}")
+        await msg.edit(content=f"❌ Error during sync: {e}")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -374,7 +374,7 @@ async def setup_ticket(ctx):
         "• Click the button below to open a ticket and request a middleman.\n\n"
         "**Process:**\n"
         "1. Both parties provide the trade details in the ticket.\n"
-        "2. A middleman claims the ticket and conducts the trade safely."
+        "2. A middleman claims the ticket and conduct the trade safely."
     )
     embed.set_footer(text="IMS Helper Bot")
     await ctx.send(embed=embed, view=TicketView())
@@ -432,7 +432,7 @@ async def close(ctx):
         await asyncio.sleep(5)
         await ctx.channel.delete()
 
-# --- 8. Slash Commands (Diese sind alle noch da!) ---
+# --- 8. Slash Commands ---
 @bot.tree.command(name="autovouch", description="Control the Auto-Vouch System (on / off / now / status)")
 @app_commands.describe(option="Choose 'on' to enable loop, 'off' to disable, 'now' to post immediately, 'status' to check")
 @app_commands.default_permissions(administrator=True)

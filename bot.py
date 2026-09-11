@@ -189,11 +189,11 @@ class TicketView(View):
 
         embed1 = discord.Embed(title="New Trade Ticket", color=0x2b2d31)
         embed1.description = "Thank you for using our middleman services.\n\nPlease wait for a middleman to assist you.\n\nIf you have any questions, please let a staff member know."
-        embed1.set_footer(text="G2G Trade Assistant")
+        embed1.set_footer(text="IMS Helper Bot")
 
         embed2 = discord.Embed(title="Trade Parties", color=0x2b2d31)
         embed2.description = f"**Requester:**\n{interaction.user.mention}"
-        embed2.set_footer(text="G2G Trade Assistant")
+        embed2.set_footer(text="IMS Helper Bot")
 
         await ticket_channel.send(
             content=f"{interaction.user.mention} <@&{MIDDLEMAN_ROLE_ID}>",
@@ -383,7 +383,7 @@ async def setup_ticket(ctx):
         "⚠️ **DISCLAIMER!**\n"
         "You must both agree on the deal before using a middleman. Troll tickets will have consequences."
     )
-    embed.set_footer(text="G2G Trade Assistant")
+    embed.set_footer(text="IMS Helper Bot")
     await ctx.send(embed=embed, view=TicketView())
 
 @bot.command()
@@ -440,6 +440,34 @@ async def close(ctx):
         await ctx.channel.delete()
 
 # --- 8. Slash Commands ---
+@bot.tree.command(name="tos", description="Displays the Middleman Terms of Service")
+async def tos(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="📋 Middleman Terms of Service",
+        color=0x3498db,
+        timestamp=discord.utils.utcnow()
+    )
+    embed.description = (
+        "**1. 🚫 No Refunds Once Confirmed**\n\n"
+        "Once a trade is confirmed and processed by both parties, all deals are final. No refunds or asset reversals will be issued under any circumstances.\n\n"
+        "**2. 📸 Proof & Record Keeping Required**\n\n"
+        "Valid, unedited video footage or full screenshots of the deal may be requested by the middleman at any point. Refusal to provide proof may lead to immediate trade cancellation.\n\n"
+        "**3. ⚖️ Prohibited Goods & Services**\n\n"
+        "Trading stolen accounts, illegal goods, exploit software, NSFW items, or anything violating Discord ToS is strictly forbidden. Violators will be banned immediately.\n\n"
+        "**4. ⏰ Time Limits & Readiness**\n\n"
+        "Both traders must be fully ready and active throughout the middleman process. Unannounced inactivity exceeding 15 minutes will result in ticket termination.\n\n"
+        "**5. 🛡️ Disputes, Impersonation & Safety**\n\n"
+        "Always verify the middleman's user ID and official staff roles before sending items. Report any suspected scams or impersonation directly in <#support-system>.\n\n"
+        "**6. 💰 Middleman Service Fees**\n\n"
+        "Our standard middleman service fee is 5% of the total transaction value. Service fees must be fully covered prior to the final exchange of assets.\n\n"
+        "**7. 📜 Liability & Risk Disclaimer**\n\n"
+        "The middleman acts exclusively as a neutral facilitator. We are not liable for post-trade account rollbacks, game-side bans, or issues after assets are handed over.\n\n"
+        "**8. ✅ Binding Agreement**\n\n"
+        "By initiating a middleman ticket or participating in a deal, you acknowledge and agree to comply with all terms stated in this document."
+    )
+    embed.set_footer(text="Powered by IMS Helper Bot")
+    await interaction.response.send_message(embed=embed)
+
 @bot.tree.command(name="autovouch", description="Control the Auto-Vouch System (on / off / now / status)")
 @app_commands.describe(option="Choose 'on' to enable loop, 'off' to disable, 'now' to post immediately, 'status' to check")
 @app_commands.default_permissions(administrator=True)

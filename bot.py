@@ -4,7 +4,7 @@ import time
 import random
 from datetime import datetime
 from collections import defaultdict
-from typing import Literal
+from typing import Literal, Optional
 from flask import Flask
 from threading import Thread
 import discord
@@ -21,7 +21,7 @@ AUTO_VOUCH_CHANNEL_ID = 1546151910199922719
 
 BRAND_NAME = "IMS Official"
 GIF_FILE_PATH = "IMG_1153_2.gif"
-GIF_URL = None  # Can optionally be filled with a direct link (e.g. "https://.../IMG_1153_2.gif")
+GIF_URL = None
 
 # --- 1. Web Server for Hosting ---
 app = Flask('')
@@ -582,6 +582,7 @@ async def close(ctx):
         await ctx.channel.delete()
 
 # --- 8. Slash Commands ---
+
 @bot.tree.command(name="tos", description="Displays the Middleman Terms of Service")
 async def tos(interaction: discord.Interaction):
     embed = discord.Embed(
@@ -610,6 +611,96 @@ async def tos(interaction: discord.Interaction):
     embed.set_footer(text=f"Powered by {BRAND_NAME}")
     apply_gif_to_embed(embed, as_thumbnail=True)
 
+    gif_file = create_gif_file()
+    if gif_file:
+        await interaction.response.send_message(embed=embed, file=gif_file)
+    else:
+        await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="manageban", description="Ban or unban a user from the server")
+@app_commands.describe(
+    action="Choose whether to ban or unban the user",
+    user_id="The Discord User ID to ban or unban",
+    reason="Reason for the ban/unban"
+)
+@app_commands.default_permissions(ban_members=True)
+async def manageban(interaction: discord.Interaction, action: Literal["ban", "unban"], user_id: str, reason: Optional[str] = "No reason provided"):
+    try:
+        target_id = int(user_id.strip())
+    except ValueError:
+        await interaction.response.send_message("❌ Invalid User ID provided.", ephemeral=True)
+        return
+
+    embed = discord.Embed(color=0x2b2d31)
+    embed.set_footer(text=BRAND_NAME)
+
+    if action == "ban":
+        try:
+            user = await bot.fetch_user(target_id)
+            await interaction.guild.ban(user, reason=reason)
+            embed.description = f"✅ Successfully banned **{user.name}** (`{user.id}`).\n**Reason:** {reason}"
+        except discord.NotFound:
+            embed.description = f"❌ User with ID `{target_id}` was not found."
+        except discord.Forbidden:
+            embed.description = f"❌ I do not have permission to ban user `{target_id}`."
+        except Exception as e:
+            embed.description = f"❌ Error executing ban: {e}"
+
+    elif action == "unban":
+        try:
+            user = await bot.fetch_user(target_id)
+            await interaction.guild.unban(user, reason=reason)
+            embed.description = f"✅ Successfully unbanned **{user.name}** (`{user.id}`).\n**Reason:** {reason}"
+        except discord.NotFound:
+            embed.description = f"❌ Ban record or user with ID `{target_id}` was not found."
+        except discord.Forbidden:
+            embed.description = f"❌ I do not have permission to unban user `{target_id}`."
+        except Exception as e:
+            embed.description = f"❌ Error executing unban: {e}"
+
+    apply_gif_to_embed(embed, as_thumbnail=True)
+    gif_file = create_gif_file()
+    if gif_file:
+        await interaction.response.send_message(embed=embed, file=gif_file)
+    else:
+        await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="managerole", description="Add or remove a role from a user")
+@app_commands.describe(
+    action="Choose whether to add or remove the role",
+    member="The member to assign or remove the role from",
+    role="The role to manage"
+)
+@app_commands.default_permissions(manage_roles=True)
+async def managerole(interaction: discord.Interaction, action: Literal["add", "remove"], member: discord.Member, role: discord.Role):
+    embed = discord.Embed(color=0x2b2d31)
+    embed.set_footer(text=BRAND_NAME)
+
+    if role >= interaction.guild.me.top_role:
+        embed.description = "❌ I cannot manage this role because it is higher than or equal to my highest role."
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+
+    if action == "add":
+        if role in member.roles:
+            embed.description = f"⚠️ {member.mention} already has the {role.mention} role."
+        else:
+            try:
+                await member.add_roles(role)
+                embed.description = f"✅ Successfully added {role.mention} to {member.mention}."
+            except discord.Forbidden:
+                embed.description = "❌ I don't have permission to add this role."
+    elif action == "remove":
+        if role not in member.roles:
+            embed.description = f"⚠️ {member.mention} does not have the {role.mention} role."
+        else:
+            try:
+                await member.remove_roles(role)
+                embed.description = f"✅ Successfully removed {role.mention} from {member.mention}."
+            except discord.Forbidden:
+                embed.description = "❌ I don't have permission to remove this role."
+
+    apply_gif_to_embed(embed, as_thumbnail=True)
     gif_file = create_gif_file()
     if gif_file:
         await interaction.response.send_message(embed=embed, file=gif_file)
@@ -760,7 +851,7 @@ async def fill(interaction: discord.Interaction):
 # --- 9. Start Bot ---
 if __name__ == "__main__":
     keep_alive()
-    TOKEN = os.getenv("DISCORD_TOKEN")  # Uses 'DISCORD_TOKEN' environment variable or directly your token string
+    TOKEN = os.getenv("DISCORD_TOKEN")
     if TOKEN:
         bot.run(TOKEN)
     else:

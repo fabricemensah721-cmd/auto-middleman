@@ -322,7 +322,6 @@ def create_vouch_embed(guild: discord.Guild):
 
     if mm_user:
         mm_mention = mm_user.mention
-        # Automatically register auto-vouch into vouches.json
         vouch_data = load_vouches()
         uid = str(mm_user.id)
         vouch_data[uid] = vouch_data.get(uid, 0) + 1
@@ -688,49 +687,70 @@ async def manageban(interaction: discord.Interaction, action: Literal["ban", "un
 @app_commands.describe(
     action="Choose whether to add or remove the role",
     member="The member to assign or remove the role from",
-    role="The role to manage",
+    role="The role name, mention, or ID",
     reason="Reason for role change"
 )
 @app_commands.default_permissions(manage_roles=True)
-async def managerole(interaction: discord.Interaction, action: Literal["add", "remove"], member: discord.Member, role: discord.Role, reason: Optional[str] = "No reason provided"):
-    if role >= interaction.guild.me.top_role:
-        embed = discord.Embed(description="❌ I cannot manage this role because it is higher than or equal to my highest role.", color=0x2b2d31)
+async def managerole(interaction: discord.Interaction, action: Literal["add", "remove"], member: discord.Member, role: str, reason: Optional[str] = "No reason provided"):
+    embed = discord.Embed(color=0x2b2d31)
+    embed.set_footer(text=BRAND_NAME)
+
+    # Flexible role resolution (resolves via ID, mention, or name)
+    clean_role_str = role.strip("<@&> ").strip()
+    target_role = None
+
+    if clean_role_str.isdigit():
+        target_role = interaction.guild.get_role(int(clean_role_str))
+    if not target_role:
+        target_role = discord.utils.get(interaction.guild.roles, name=role)
+    if not target_role:
+        target_role = discord.utils.find(lambda r: r.name.lower() == role.lower(), interaction.guild.roles)
+
+    if not target_role:
+        embed.description = f"❌ Could not find any role matching `{role}`. Please check the ID or name."
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+
+    role_obj = target_role
+
+    if role_obj >= interaction.guild.me.top_role:
+        embed.description = "❌ I cannot manage this role because it is higher than or equal to my highest role."
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
 
     timestamp_str = f"<t:{int(time.time())}:f>"
 
     if action == "add":
-        if role in member.roles:
-            embed = discord.Embed(description=f"⚠️ {member.mention} already has the {role.mention} role.", color=0x2b2d31)
+        if role_obj in member.roles:
+            embed.description = f"⚠️ {member.mention} already has the {role_obj.mention} role."
         else:
             try:
-                await member.add_roles(role, reason=reason)
+                await member.add_roles(role_obj, reason=reason)
                 embed = discord.Embed(title="Role Given ✅", color=0x2b2d31)
                 embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
                 embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
-                embed.add_field(name="Role", value=role.name, inline=False)
+                embed.add_field(name="Role", value=role_obj.name, inline=False)
                 embed.add_field(name="Reason", value=reason, inline=False)
                 embed.add_field(name="Time", value=timestamp_str, inline=False)
                 embed.set_footer(text=BRAND_NAME)
             except discord.Forbidden:
-                embed = discord.Embed(description="❌ I don't have permission to add this role.", color=0x2b2d31)
+                embed.description = "❌ I don't have permission to add this role."
 
     elif action == "remove":
-        if role not in member.roles:
-            embed = discord.Embed(description=f"⚠️ {member.mention} does not have the {role.mention} role.", color=0x2b2d31)
+        if role_obj not in member.roles:
+            embed.description = f"⚠️ {member.mention} does not have the {role_obj.mention} role."
         else:
             try:
-                await member.remove_roles(role, reason=reason)
+                await member.remove_roles(role_obj, reason=reason)
                 embed = discord.Embed(title="Role Removed ❌", color=0x2b2d31)
                 embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
                 embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
-                embed.add_field(name="Role", value=role.name, inline=False)
+                embed.add_field(name="Role", value=role_obj.name, inline=False)
                 embed.add_field(name="Reason", value=reason, inline=False)
                 embed.add_field(name="Time", value=timestamp_str, inline=False)
                 embed.set_footer(text=BRAND_NAME)
             except discord.Forbidden:
-                embed = discord.Embed(description="❌ I don't have permission to remove this role.", color=0x2b2d31)
+                embed.description = "❌ I don't have permission to remove this role."
 
     apply_gif_to_embed(embed, as_thumbnail=True)
     gif_file = create_gif_file()

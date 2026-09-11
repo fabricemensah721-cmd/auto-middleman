@@ -184,11 +184,11 @@ class TicketView(View):
 
         embed1 = discord.Embed(title="New Trade Ticket", color=0x2b2d31)
         embed1.description = "Thank you for using our middleman services.\n\nPlease wait for a middleman to assist you.\n\nIf you have any questions, please let a staff member know."
-        embed1.set_footer(text="IMS Helper Bot")
+        embed1.set_footer(text="G2G Trade Assistant")
 
         embed2 = discord.Embed(title="Trade Parties", color=0x2b2d31)
         embed2.description = f"**Requester:**\n{interaction.user.mention}"
-        embed2.set_footer(text="IMS Helper Bot")
+        embed2.set_footer(text="G2G Trade Assistant")
 
         await ticket_channel.send(
             content=f"{interaction.user.mention} <@&{MIDDLEMAN_ROLE_ID}>",
@@ -352,13 +352,11 @@ async def on_member_ban(guild, user):
 
 # --- 7. General Commands ---
 
-# 🔥 FIXED SYNC COMMAND 🔥 (No delay, instant sync to this specific server)
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def sync(ctx):
-    msg = await ctx.send("🔄 Syncing commands... (This will only take a second)")
+    msg = await ctx.send("🔄 Syncing commands...")
     try:
-        # Copies all slash commands IMMEDIATELY to this server
         bot.tree.copy_global_to(guild=ctx.guild)
         synced = await bot.tree.sync(guild=ctx.guild)
         await msg.edit(content=f"✅ {len(synced)} Slash Commands were **instantly** synced!")
@@ -370,13 +368,17 @@ async def sync(ctx):
 async def setup_ticket(ctx):
     embed = discord.Embed(color=0x2b2d31)
     embed.description = (
-        "**Middleman Service**\n"
-        "• Click the button below to open a ticket and request a middleman.\n\n"
-        "**Process:**\n"
-        "1. Both parties provide the trade details in the ticket.\n"
-        "2. A middleman claims the ticket and conduct the trade safely."
+        "**Middleman Service**\n\n"
+        "• To request a middleman from this server, click the blue \"Request Middleman\" button on this message.\n\n"
+        "**How does middleman work?**\n"
+        "• Example: Trade is Frost Dragon for Corrupt.\n"
+        "• Trader #1 gives Frost Dragon to middleman.\n"
+        "• Trader #2 gives Corrupt to middleman.\n"
+        "• Middleman gives the respective pets to each trader.\n\n"
+        "⚠️ **DISCLAIMER!**\n"
+        "You must both agree on the deal before using a middleman. Troll tickets will have consequences."
     )
-    embed.set_footer(text="IMS Helper Bot")
+    embed.set_footer(text="G2G Trade Assistant")
     await ctx.send(embed=embed, view=TicketView())
 
 @bot.command()

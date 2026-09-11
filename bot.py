@@ -374,9 +374,15 @@ async def on_member_ban(guild, user):
 @commands.has_permissions(administrator=True)
 async def sync(ctx):
     try:
+        # 1. Clear global commands so they don't show up twice
+        bot.tree.clear_commands(guild=None)
+        await bot.tree.sync(guild=None)
+        
+        # 2. Sync commands only to this specific server
         bot.tree.copy_global_to(guild=ctx.guild)
         synced = await bot.tree.sync(guild=ctx.guild)
-        await ctx.send(f"✅ {len(synced)} slash commands have been successfully synced!")
+        
+        await ctx.send(f"✅ {len(synced)} slash commands have been synced! (Duplicates have been removed, please restart your Discord app if they still show up twice).")
     except Exception as e:
         await ctx.send(f"❌ Error while syncing: {e}")
 
@@ -636,11 +642,12 @@ async def managerole(interaction: discord.Interaction, member: discord.Member, r
     try:
         await member.add_roles(role, reason=reason)
         
-        embed = discord.Embed(title="🔧 Role Assigned", color=0x3498db, timestamp=discord.utils.utcnow())
-        embed.add_field(name="Action By", value=interaction.user.mention, inline=False)
-        embed.add_field(name="Target User", value=member.mention, inline=False)
-        embed.add_field(name="Given Role", value=role.mention, inline=False)
+        embed = discord.Embed(title="Role Given ✅", color=0x2b2d31, timestamp=discord.utils.utcnow())
+        embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
+        embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
+        embed.add_field(name="Role", value=role.name, inline=False)
         embed.add_field(name="Reason", value=reason, inline=False)
+        embed.add_field(name="Time", value=f"<t:{int(time.time())}:F>", inline=False)
         embed.set_footer(text="IMS Helper Bot")
         
         await interaction.response.send_message(embed=embed)
@@ -655,11 +662,12 @@ async def manageban(interaction: discord.Interaction, member: discord.Member, re
     try:
         await member.ban(reason=reason)
         
-        embed = discord.Embed(title="🔨 User Banned", color=0xe74c3c, timestamp=discord.utils.utcnow())
-        embed.add_field(name="Action By", value=interaction.user.mention, inline=False)
-        embed.add_field(name="Target User", value=member.mention, inline=False)
+        embed = discord.Embed(title="User Banned 🔨", color=0x2b2d31, timestamp=discord.utils.utcnow())
+        embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
+        embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
         embed.add_field(name="Action", value="Ban", inline=False)
         embed.add_field(name="Reason", value=reason, inline=False)
+        embed.add_field(name="Time", value=f"<t:{int(time.time())}:F>", inline=False)
         embed.set_footer(text="IMS Helper Bot")
         
         await interaction.response.send_message(embed=embed)

@@ -9,7 +9,7 @@ from flask import Flask
 from threading import Thread
 import discord
 from discord.ext import commands, tasks
-from discord.ui import Button, View, Select
+from discord.ui import Button, View
 import asyncio
 from discord import app_commands
 
@@ -193,45 +193,13 @@ class TicketControlsView(View):
         await asyncio.sleep(5)
         await interaction.channel.delete()
 
-# --- 4. Ticket Panel & Dropdown System ---
-class TicketSelect(Select):
+# --- 4. Ticket Panel System (Dropdown Removed) ---
+class TicketMainView(View):
     def __init__(self):
-        options = [
-            discord.SelectOption(
-                label="Small Trade (< $25)",
-                description="Trade value under $25 USD",
-                emoji="💵",
-                value="small"
-            ),
-            discord.SelectOption(
-                label="Medium Trade ($25 - $50)",
-                description="Trade value between $25 and $50 USD",
-                emoji="💸",
-                value="medium"
-            ),
-            discord.SelectOption(
-                label="High Tier Trade ($50 - $100)",
-                description="Trade value between $50 and $100 USD",
-                emoji="💰",
-                value="high"
-            ),
-            discord.SelectOption(
-                label="Whale Trade ($100+)",
-                description="High-value trade exceeding $100 USD",
-                emoji="💎",
-                value="whale"
-            ),
-        ]
-        super().__init__(
-            placeholder="Select your trade value bracket...",
-            min_values=1,
-            max_values=1,
-            options=options,
-            custom_id="ticket_dropdown_select"
-        )
+        super().__init__(timeout=None)
 
-    async def callback(self, interaction: discord.Interaction):
-        selected_value = self.values[0]
+    @discord.ui.button(label="Request Middleman", style=discord.ButtonStyle.green, custom_id="request_middleman_main")
+    async def request_middleman_button(self, interaction: discord.Interaction, button: Button):
         middleman_role = interaction.guild.get_role(MIDDLEMAN_ROLE_ID)
 
         overwrites = {
@@ -246,7 +214,7 @@ class TicketSelect(Select):
         category = interaction.guild.get_channel(TICKET_CATEGORY_ID)
 
         ticket_channel = await interaction.guild.create_text_channel(
-            name=f"ticket-{selected_value}-{interaction.user.name}",
+            name=f"ticket-{interaction.user.name}",
             category=category,
             overwrites=overwrites
         )
@@ -255,8 +223,7 @@ class TicketSelect(Select):
 
         embed1 = discord.Embed(title=f"💠 {BRAND_NAME} — Trade Ticket", color=0x3498db)
         embed1.description = (
-            f"Thank you for using our middleman services.\n"
-            f"**Selected Bracket:** {selected_value.capitalize()} Trade\n\n"
+            f"Thank you for using our middleman services.\n\n"
             "Please wait for a middleman to assist you.\n"
             "If you have any questions, please let a staff member know."
         )
@@ -281,16 +248,6 @@ class TicketSelect(Select):
                 embeds=[embed1, embed2],
                 view=TicketControlsView()
             )
-
-class TicketMainView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="Request Middleman", style=discord.ButtonStyle.green, custom_id="request_middleman_main")
-    async def request_middleman_button(self, interaction: discord.Interaction, button: Button):
-        view = View(timeout=180)
-        view.add_item(TicketSelect())
-        await interaction.response.send_message("Please select your trade value bracket below:", view=view, ephemeral=True)
 
 # --- 5. Bot Configuration & Events ---
 intents = discord.Intents.default()

@@ -2,6 +2,7 @@ import os
 import json
 import time
 import random
+import io
 from datetime import datetime
 from collections import defaultdict
 from typing import Literal, Optional
@@ -18,6 +19,7 @@ MIDDLEMAN_ROLE_ID = 1411386035551867044
 TICKET_CATEGORY_ID = 1415896804024651908
 MEMBER_ROLE_ID = 1411088611926868168
 AUTO_VOUCH_CHANNEL_ID = 1546151910199922719
+TRANSCRIPT_CHANNEL_ID = 1432124881788600320
 
 BRAND_NAME = "IMS Helper Bot"
 GIF_FILE_PATH = "IMG_1153_2.gif"
@@ -38,7 +40,7 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# --- 1.5 Storage System ---
+# --- 1.5 Storage Systems ---
 def load_vouches():
     try:
         with open("vouches.json", "r") as f:
@@ -48,6 +50,17 @@ def load_vouches():
 
 def save_vouches(data):
     with open("vouches.json", "w") as f:
+        json.dump(data, f)
+
+def load_blacklist():
+    try:
+        with open("blacklist.json", "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+def save_blacklist(data):
+    with open("blacklist.json", "w") as f:
         json.dump(data, f)
 
 def load_config():
@@ -79,6 +92,20 @@ def create_gif_file():
     if not GIF_URL and os.path.exists(GIF_FILE_PATH):
         return discord.File(GIF_FILE_PATH, filename=GIF_FILE_PATH)
     return None
+
+async def generate_transcript(channel: discord.TextChannel):
+    messages = []
+    async for message in channel.history(limit=None, oldest_first=True):
+        timestamp = message.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        author = f"{message.author} ({message.author.id})"
+        content = message.content
+        if message.attachments:
+            attachments = " [Attachments: " + ", ".join([a.url for a in message.attachments]) + "]"
+            content += attachments
+        messages.append(f"[{timestamp}] {author}: {content}")
+    
+    transcript_text = "\n".join(messages)
+    return io.BytesIO(transcript_text.encode('utf-8'))
 
 # --- 2. Verification System ---
 class VerifyView(View):
@@ -187,19 +214,36 @@ class TicketControlsView(View):
         await interaction.response.edit_message(view=self)
 
         embed = discord.Embed(color=0x2b2d31)
-        embed.description = "🔒 This ticket will be closed and deleted in 5 seconds..."
+        embed.description = "🔒 Generating transcript... This ticket will be closed and deleted in 5 seconds..."
         embed.set_footer(text=BRAND_NAME)
         await interaction.channel.send(embed=embed)
+
+        # Generate and upload transcript
+        buffer = await generate_transcript(interaction.channel)
+        buffer.seek(0)
+        file = discord.File(buffer, filename=f"transcript-{interaction.channel.name}.txt")
+
+        transcript_channel = interaction.guild.get_channel(TRANSCRIPT_CHANNEL_ID) if TRANSCRIPT_CHANNEL_ID else None
+        if transcript_channel:
+            await transcript_channel.send(f"📁 Transcript for **{interaction.channel.name}** closed by {interaction.user.mention}:", file=file)
+
         await asyncio.sleep(5)
         await interaction.channel.delete()
 
-# --- 4. Ticket Panel System (Dropdown Removed) ---
+# --- 4. Ticket Panel System ---
 class TicketMainView(View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="Request Middleman", style=discord.ButtonStyle.green, custom_id="request_middleman_main")
     async def request_middleman_button(self, interaction: discord.Interaction, button: Button):
+        # Check blacklist
+        bl_data = load_blacklist()
+        if str(interaction.user.id) in bl_data:
+            reason = bl_data[str(interaction.user.id)].get("reason", "No reason provided")
+            await interaction.response.send_message(f"❌ You are blacklisted from creating tickets.\n**Reason:** {reason}", ephemeral=True)
+            return
+
         middleman_role = interaction.guild.get_role(MIDDLEMAN_ROLE_ID)
 
         overwrites = {
@@ -506,13 +550,46 @@ async def add(ctx, member: discord.Member):
 async def close(ctx):
     if "ticket" in ctx.channel.name:
         embed = discord.Embed(color=0x2b2d31)
-        embed.description = "🔒 The ticket will be closed and deleted in 5 seconds..."
+        embed.description = "🔒 Generating transcript... The ticket will be closed and deleted in 5 seconds..."
         embed.set_footer(text=BRAND_NAME)
         await ctx.send(embed=embed)
+
+        buffer = await generate_transcript(ctx.channel)
+        buffer.seek(0)
+        file = discord.File(buffer, filename=f"transcript-{ctx.channel.name}.txt")
+
+        transcript_channel = ctx.guild.get_channel(TRANSCRIPT_CHANNEL_ID) if TRANSCRIPT_CHANNEL_ID else None
+        if transcript_channel:
+            await transcript_channel.send(f"📁 Transcript for **{ctx.channel.name}** closed by {ctx.author.mention}:", file=file)
+
         await asyncio.sleep(5)
         await ctx.channel.delete()
+    else:
+        embed = discord.Embed(color=0x2b2d31)
+        embed.description = "❌ This command can only be used inside a ticket channel!"
+        embed.set_footer(text=BRAND_NAME)
+        await ctx.send(embed=embed)
 
 # --- 8. Slash Commands ---
+
+@bot.tree.command(name="blacklist", description="Add or remove a user from the ticket blacklist")
+@app_commands.describe(action="add or remove", member="The target user", reason="Reason for blacklisting")
+@app_commands.default_permissions(administrator=True)
+async def blacklist(interaction: discord.Interaction, action: Literal["add", "remove"], member: discord.Member, reason: Optional[str] = "No reason provided"):
+    bl_data = load_blacklist()
+    uid = str(member.id)
+
+    if action == "add":
+        bl_data[uid] = {"reason": reason, "timestamp": int(time.time())}
+        save_blacklist(bl_data)
+        await interaction.response.send_message(f"✅ Successfully blacklisted {member.mention} from opening tickets.\n**Reason:** {reason}", ephemeral=True)
+    elif action == "remove":
+        if uid in bl_data:
+            del bl_data[uid]
+            save_blacklist(bl_data)
+            await interaction.response.send_message(f"✅ Successfully removed {member.mention} from the blacklist.", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"❌ {member.mention} is not on the blacklist.", ephemeral=True)
 
 @bot.tree.command(name="tos", description="Displays the Middleman Terms of Service")
 async def tos(interaction: discord.Interaction):
@@ -718,13 +795,11 @@ async def vouch(interaction: discord.Interaction, member: discord.Member, review
         await interaction.response.send_message("❌ You cannot vouch for yourself!", ephemeral=True)
         return
 
-    # Update vouch data
     vouch_data = load_vouches()
     uid = str(member.id)
     vouch_data[uid] = vouch_data.get(uid, 0) + 1
     save_vouches(vouch_data)
 
-    # Build vouch embed
     embed = discord.Embed(color=0x2ecc71, timestamp=discord.utils.utcnow())
     embed.description = (
         "✅ **new vouch**\n\n"
@@ -737,7 +812,6 @@ async def vouch(interaction: discord.Interaction, member: discord.Member, review
     embed.set_footer(text=f"{BRAND_NAME} • Total Vouches: {vouch_data[uid]}")
     apply_gif_to_embed(embed, as_thumbnail=True)
 
-    # Post to the vouch channel
     channel = bot.get_channel(AUTO_VOUCH_CHANNEL_ID)
     gif_file = create_gif_file()
     

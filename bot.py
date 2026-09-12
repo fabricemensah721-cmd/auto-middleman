@@ -665,13 +665,19 @@ async def mmexplain(interaction: discord.Interaction):
         timestamp=discord.utils.utcnow()
     )
     embed.description = (
-        "A **Middleman (MM)** is a verified staff member who acts as a neutral third party to ensure a safe transaction.\n\n"
-        "**1. 🎫 Open a Ticket**\nClick the button in the middleman channel.\n\n"
-        "**2. 📝 Agree on Deal Details**\nSpecify the items and payment methods.\n\n"
-        "**3. 📥 Hand over Item to MM**\nSeller transfers item to the Middleman.\n\n"
-        "**4. 💸 Send Payment**\nBuyer sends payment to the seller.\n\n"
-        "**5. ✅ Confirmation & Asset Release**\nMM releases the assets.\n\n"
-        "**6. ⭐ Vouch & Close**\nLeave a review and close the ticket."
+        "Wondering how our middleman (MM) service keeps you safe? Here's the rundown on how we handle trades to ensure nobody gets scammed.\n\n"
+        "**1. 🎫 Open a Ticket**\n"
+        "Head over to our middleman channel and click the button to open a private ticket. Make sure to ping or invite the person you're trading with so everyone is in the same channel.\n\n"
+        "**2. 📝 Agree on the Deal**\n"
+        "Both of you need to state exactly what the trade is. For example, 'My Frost Dragon for their $50 CashApp.' You also need to agree on who is covering any middleman fees if applicable.\n\n"
+        "**3. 📥 Securing the Items**\n"
+        "The person giving the in-game item or account will trade it directly to the Middleman first. The MM will hold onto it and verify that everything is correct.\n\n"
+        "**4. 💸 Sending Payment**\n"
+        "Once the MM confirms they have the item secured, the buyer can safely send the money directly to the seller's payment method (PayPal, CashApp, Crypto, etc.).\n\n"
+        "**5. ✅ Releasing the Assets**\n"
+        "After the seller confirms they've fully received the money, the Middleman will trade the secured item over to the buyer.\n\n"
+        "**6. ⭐ Vouch & Close**\n"
+        "Once everyone has their stuff, we ask that you drop a quick vouch for the MM, and then we'll lock and close the ticket!"
     )
     embed.set_footer(text=BRAND_NAME)
     apply_gif_to_embed(embed, as_thumbnail=True)

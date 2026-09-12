@@ -63,6 +63,17 @@ def save_blacklist(data):
     with open("blacklist.json", "w") as f:
         json.dump(data, f)
 
+def load_tickets():
+    try:
+        with open("tickets.json", "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+def save_tickets(data):
+    with open("tickets.json", "w") as f:
+        json.dump(data, f)
+
 def load_config():
     try:
         with open("config.json", "r") as f:
@@ -164,6 +175,13 @@ class TicketControlsView(View):
             await interaction.response.send_message("❌ Only Middlemen can claim this ticket!", ephemeral=True)
             return
 
+        # Prevent ticket creators from claiming their own ticket
+        tickets = load_tickets()
+        creator_id = tickets.get(str(interaction.channel.id))
+        if creator_id and interaction.user.id == creator_id:
+            await interaction.response.send_message("❌ You cannot claim your own ticket!", ephemeral=True)
+            return
+
         await interaction.channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
         
         button.disabled = True
@@ -209,44 +227,59 @@ class TicketControlsView(View):
 
     @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, custom_id="close_ticket")
     async def close_button(self, interaction: discord.Interaction, button: Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(view=self)
+        try:
+            for child in self.children:
+                child.disabled = True
+            await interaction.response.edit_message(view=self)
 
-        embed = discord.Embed(color=0x2b2d31)
-        embed.description = "🔒 Generating transcript... This ticket will be closed and deleted in 5 seconds..."
-        embed.set_footer(text=BRAND_NAME)
-        await interaction.channel.send(embed=embed)
+            embed = discord.Embed(color=0x2b2d31)
+            embed.description = "🔒 Generating transcript... This ticket will be closed and deleted in 5 seconds..."
+            embed.set_footer(text=BRAND_NAME)
+            await interaction.channel.send(embed=embed)
 
-        # Generate transcript and send as embed
-        buffer = await generate_transcript(interaction.channel)
-        buffer.seek(0.0)
-        file = discord.File(buffer, filename=f"transcript-{interaction.channel.name}.txt")
+            # Generate transcript and send safely
+            try:
+                buffer = await generate_transcript(interaction.channel)
+                buffer.seek(0.0)
+                file = discord.File(buffer, filename=f"transcript-{interaction.channel.name}.txt")
 
-        transcript_channel = interaction.guild.get_channel(TRANSCRIPT_CHANNEL_ID) if TRANSCRIPT_CHANNEL_ID else None
-        if transcript_channel:
-            transcript_embed = discord.Embed(
-                title="📁 Ticket Transcript",
-                color=0x2b2d31,
-                timestamp=discord.utils.utcnow()
-            )
-            transcript_embed.description = f"Transcript for **{interaction.channel.name}** has been successfully generated and closed by {interaction.user.mention}."
-            transcript_embed.set_footer(text=BRAND_NAME)
-            apply_gif_to_embed(transcript_embed, as_thumbnail=True)
+                transcript_channel = interaction.guild.get_channel(TRANSCRIPT_CHANNEL_ID) if TRANSCRIPT_CHANNEL_ID else None
+                if transcript_channel:
+                    transcript_embed = discord.Embed(
+                        title="📁 Ticket Transcript",
+                        color=0x2b2d31,
+                        timestamp=discord.utils.utcnow()
+                    )
+                    transcript_embed.description = f"Transcript for **{interaction.channel.name}** has been successfully generated and closed by {interaction.user.mention}."
+                    transcript_embed.set_footer(text=BRAND_NAME)
+                    apply_gif_to_embed(transcript_embed, as_thumbnail=True)
 
-            gif_file = create_gif_file()
-            files_to_send = [file]
-            if gif_file and not GIF_URL:
-                files_to_send.append(gif_file)
+                    gif_file = create_gif_file()
+                    files_to_send = [file]
+                    if gif_file and not GIF_URL:
+                        files_to_send.append(gif_file)
 
-            if GIF_URL:
-                await transcript_channel.send(embed=transcript_embed)
-                await transcript_channel.send(file=file)
-            else:
-                await transcript_channel.send(embed=transcript_embed, files=files_to_send)
+                    if GIF_URL:
+                        await transcript_channel.send(embed=transcript_embed)
+                        await transcript_channel.send(file=file)
+                    else:
+                        await transcript_channel.send(embed=transcript_embed, files=files_to_send)
+            except Exception as e:
+                print(f"Transcript generation or logging error: {e}")
 
-        await asyncio.sleep(5)
-        await interaction.channel.delete()
+            # Clean up ticket storage
+            tickets = load_tickets()
+            if str(interaction.channel.id) in tickets:
+                del tickets[str(interaction.channel.id)]
+                save_tickets(tickets)
+
+            await asyncio.sleep(5)
+            await interaction.channel.delete()
+        except Exception as e:
+            try:
+                await interaction.channel.send(f"❌ An error occurred while closing the ticket: {e}")
+            except:
+                pass
 
 # --- 4. Ticket Panel System ---
 class TicketMainView(View):
@@ -280,6 +313,11 @@ class TicketMainView(View):
             category=category,
             overwrites=overwrites
         )
+
+        # Save ticket creator ID
+        tickets = load_tickets()
+        tickets[str(ticket_channel.id)] = interaction.user.id
+        save_tickets(tickets)
 
         await interaction.response.send_message(f"Your ticket has been created: {ticket_channel.mention}", ephemeral=True)
 
@@ -567,39 +605,51 @@ async def add(ctx, member: discord.Member):
 @bot.command()
 async def close(ctx):
     if "ticket" in ctx.channel.name:
-        embed = discord.Embed(color=0x2b2d31)
-        embed.description = "🔒 Generating transcript... The ticket will be closed and deleted in 5 seconds..."
-        embed.set_footer(text=BRAND_NAME)
-        await ctx.send(embed=embed)
+        try:
+            embed = discord.Embed(color=0x2b2d31)
+            embed.description = "🔒 Generating transcript... The ticket will be closed and deleted in 5 seconds..."
+            embed.set_footer(text=BRAND_NAME)
+            await ctx.send(embed=embed)
 
-        buffer = await generate_transcript(ctx.channel)
-        buffer.seek(0)
-        file = discord.File(buffer, filename=f"transcript-{ctx.channel.name}.txt")
+            try:
+                buffer = await generate_transcript(ctx.channel)
+                buffer.seek(0)
+                file = discord.File(buffer, filename=f"transcript-{ctx.channel.name}.txt")
 
-        transcript_channel = ctx.guild.get_channel(TRANSCRIPT_CHANNEL_ID) if TRANSCRIPT_CHANNEL_ID else None
-        if transcript_channel:
-            transcript_embed = discord.Embed(
-                title="📁 Ticket Transcript",
-                color=0x2b2d31,
-                timestamp=discord.utils.utcnow()
-            )
-            transcript_embed.description = f"Transcript for **{ctx.channel.name}** has been successfully generated and closed by {ctx.author.mention}."
-            transcript_embed.set_footer(text=BRAND_NAME)
-            apply_gif_to_embed(transcript_embed, as_thumbnail=True)
+                transcript_channel = ctx.guild.get_channel(TRANSCRIPT_CHANNEL_ID) if TRANSCRIPT_CHANNEL_ID else None
+                if transcript_channel:
+                    transcript_embed = discord.Embed(
+                        title="📁 Ticket Transcript",
+                        color=0x2b2d31,
+                        timestamp=discord.utils.utcnow()
+                    )
+                    transcript_embed.description = f"Transcript for **{ctx.channel.name}** has been successfully generated and closed by {ctx.author.mention}."
+                    transcript_embed.set_footer(text=BRAND_NAME)
+                    apply_gif_to_embed(transcript_embed, as_thumbnail=True)
 
-            gif_file = create_gif_file()
-            files_to_send = [file]
-            if gif_file and not GIF_URL:
-                files_to_send.append(gif_file)
+                    gif_file = create_gif_file()
+                    files_to_send = [file]
+                    if gif_file and not GIF_URL:
+                        files_to_send.append(gif_file)
 
-            if GIF_URL:
-                await transcript_channel.send(embed=transcript_embed)
-                await transcript_channel.send(file=file)
-            else:
-                await transcript_channel.send(embed=transcript_embed, files=files_to_send)
+                    if GIF_URL:
+                        await transcript_channel.send(embed=transcript_embed)
+                        await transcript_channel.send(file=file)
+                    else:
+                        await transcript_channel.send(embed=transcript_embed, files=files_to_send)
+            except Exception as e:
+                print(f"Transcript generation or logging error: {e}")
 
-        await asyncio.sleep(5)
-        await ctx.channel.delete()
+            # Clean up ticket storage
+            tickets = load_tickets()
+            if str(ctx.channel.id) in tickets:
+                del tickets[str(ctx.channel.id)]
+                save_tickets(tickets)
+
+            await asyncio.sleep(5)
+            await ctx.channel.delete()
+        except Exception as e:
+            await ctx.send(f"❌ An error occurred while closing the ticket: {e}")
     else:
         embed = discord.Embed(color=0x2b2d31)
         embed.description = "❌ This command can only be used inside a ticket channel!"

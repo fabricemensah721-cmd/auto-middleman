@@ -19,7 +19,7 @@ TICKET_CATEGORY_ID = 1415896804024651908
 MEMBER_ROLE_ID = 1519990840406179840
 AUTO_VOUCH_CHANNEL_ID = 1546151910199922719
 
-BRAND_NAME = "IMS Official"
+BRAND_NAME = "G2G Trade Assistant"
 GIF_FILE_PATH = "IMG_1153_2.gif"
 GIF_URL = None
 
@@ -50,17 +50,6 @@ def save_vouches(data):
     with open("vouches.json", "w") as f:
         json.dump(data, f)
 
-def load_temp_roles():
-    try:
-        with open("temp_roles.json", "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-
-def save_temp_roles(data):
-    with open("temp_roles.json", "w") as f:
-        json.dump(data, f)
-
 def load_config():
     try:
         with open("config.json", "r") as f:
@@ -74,7 +63,6 @@ def save_config(data):
     with open("config.json", "w") as f:
         json.dump(data, f)
 
-# Helper function to attach GIF to embeds
 def apply_gif_to_embed(embed: discord.Embed, as_thumbnail: bool = True):
     if GIF_URL:
         if as_thumbnail:
@@ -205,7 +193,7 @@ class TicketControlsView(View):
         await asyncio.sleep(5)
         await interaction.channel.delete()
 
-# --- 4. Dropdown Ticket Panel System ---
+# --- 4. Ticket Panel & Dropdown System ---
 class TicketSelect(Select):
     def __init__(self):
         options = [
@@ -294,10 +282,16 @@ class TicketSelect(Select):
                 view=TicketControlsView()
             )
 
-class TicketView(View):
+class TicketMainView(View):
     def __init__(self):
         super().__init__(timeout=None)
-        self.add_item(TicketSelect())
+
+    @discord.ui.button(label="Request Middleman", style=discord.ButtonStyle.green, custom_id="request_middleman_main")
+    async def request_middleman_button(self, interaction: discord.Interaction, button: Button):
+        # Shows the dropdown menu to select the trade value when the button is clicked
+        view = View(timeout=180)
+        view.add_item(TicketSelect())
+        await interaction.response.send_message("Please select your trade value bracket below:", view=view, ephemeral=True)
 
 # --- 5. Bot Configuration & Events ---
 intents = discord.Intents.default()
@@ -307,11 +301,10 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    bot.add_view(TicketView())
+    bot.add_view(TicketMainView())
     bot.add_view(TicketControlsView())
     print(f'Logged in as {bot.user.name}')
 
-# --- Helper Function for Fake Vouches (Auto-Increments Vouch Count) ---
 def create_vouch_embed(guild: discord.Guild):
     middlemen = [m for m in guild.members if not m.bot and (any(r.id == MIDDLEMAN_ROLE_ID for r in m.roles) or m.guild_permissions.administrator)]
     
@@ -376,12 +369,10 @@ def create_vouch_embed(guild: discord.Guild):
     
     return embed
 
-# --- Automated Loop System (Every 14 Minutes) ---
 @tasks.loop(minutes=14)
 async def auto_vouch_loop():
     channel = bot.get_channel(AUTO_VOUCH_CHANNEL_ID)
     if not channel:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Auto-Vouch Error: Channel ID {AUTO_VOUCH_CHANNEL_ID} not found.")
         return
     
     embed = create_vouch_embed(channel.guild)
@@ -487,40 +478,23 @@ async def sync(ctx):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def setup_ticket(ctx, image_url: str = None):
-    embed = discord.Embed(
-        title=f"💠 {BRAND_NAME} — Official Middleman Ticket Panel",
-        color=0x3498db
-    )
+async def setup_ticket(ctx):
+    embed = discord.Embed(color=0x2b2d31)
+    embed.title = "Middleman Service"
     embed.description = (
-        "**Ready to conduct a secure, protected trade?**\n\n"
-        "Create a private Middleman Escrow ticket by selecting your estimated trade value from the dropdown below.\n\n"
-        "📋 **Pre-Ticket Checklist:**\n"
-        "• Ensure both you and your trading partner are online and ready to trade.\n"
-        "• Have your exact items or cash value agreed upon.\n"
-        "• Ensure you have agreed on the payment method (Wise, Cash App, PayPal, Robux, Crypto, etc.).\n\n"
-        "🛡️ **What happens next?**\n"
-        "1. A dedicated private channel under the Middleman category will be generated.\n"
-        "2. An official Middleman will claim your ticket and handle the escrow process from start to finish.\n"
-        "3. Automated vouches and verification roles are issued upon successful completion.\n\n"
-        "⚠️ **Select your trade value range below to begin:**"
+        "• To request a middleman from this server, click the blue \"Request Middleman\"\n"
+        "button on this message.\n\n"
+        "**How does middleman work?**\n"
+        "• Example: Trade is Frost Dragon for Corrupt.\n"
+        "• Trader #1 gives Frost Dragon to middleman.\n"
+        "• Trader #2 gives Corrupt to middleman.\n"
+        "• Middleman gives the respective pets to each trader.\n\n"
+        "⚠️ **DISCLAIMER!**\n"
+        "You must both agree on the deal before using a middleman. Troll tickets will have\n"
+        "consequences.\n\n"
+        f"{BRAND_NAME}"
     )
-    embed.set_footer(text=BRAND_NAME)
-
-    if ctx.message.attachments:
-        file = await ctx.message.attachments[0].to_file()
-        embed.set_image(url=f"attachment://{file.filename}")
-        await ctx.send(embed=embed, view=TicketView(), file=file)
-    elif image_url:
-        embed.set_image(url=image_url)
-        await ctx.send(embed=embed, view=TicketView())
-    else:
-        apply_gif_to_embed(embed, as_thumbnail=False)
-        gif_file = create_gif_file()
-        if gif_file:
-            await ctx.send(embed=embed, view=TicketView(), file=gif_file)
-        else:
-            await ctx.send(embed=embed, view=TicketView())
+    await ctx.send(embed=embed, view=TicketMainView())
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -544,7 +518,6 @@ async def setverifytext(ctx, *, new_text: str):
 @commands.has_permissions(administrator=True)
 async def verify(ctx, member: discord.Member):
     config = load_config()
-    
     raw_text = config.get("verify_text", "**Target:** {member}\n\nIf you're seeing this, you've likely just been scammed...")
     formatted_text = raw_text.replace("{member}", member.mention)
 
@@ -555,16 +528,9 @@ async def verify(ctx, member: discord.Member):
 
     gif_file = create_gif_file()
     if gif_file:
-        await ctx.send(
-            embed=embed, 
-            view=VerifyView(target_user_id=member.id),
-            file=gif_file
-        )
+        await ctx.send(embed=embed, view=VerifyView(target_user_id=member.id), file=gif_file)
     else:
-        await ctx.send(
-            embed=embed, 
-            view=VerifyView(target_user_id=member.id)
-        )
+        await ctx.send(embed=embed, view=VerifyView(target_user_id=member.id))
 
 @bot.command()
 async def add(ctx, member: discord.Member):
@@ -600,22 +566,14 @@ async def tos(interaction: discord.Interaction):
         timestamp=discord.utils.utcnow()
     )
     embed.description = (
-        "**1. 🚫 No Refunds Once Confirmed**\n\n"
-        "Once a trade is confirmed and processed by both parties, all deals are final. No refunds or asset reversals will be issued under any circumstances.\n\n"
-        "**2. 📸 Proof & Record Keeping Required**\n\n"
-        "Valid, unedited video footage or full screenshots of the deal may be requested by the middleman at any point. Refusal to provide proof may lead to immediate trade cancellation.\n\n"
-        "**3. ⚖️ Prohibited Goods & Services**\n\n"
-        "Trading stolen accounts, illegal goods, exploit software, NSFW items, or anything violating Discord ToS is strictly forbidden. Violators will be banned immediately.\n\n"
-        "**4. ⏰ Time Limits & Readiness**\n\n"
-        "Both traders must be fully ready and active throughout the middleman process. Unannounced inactivity exceeding 15 minutes will result in ticket termination.\n\n"
-        "**5. 🛡️ Disputes, Impersonation & Safety**\n\n"
-        "Always verify the middleman's user ID and official staff roles before sending items. Report any suspected scams or impersonation directly in <#support-system>.\n\n"
-        "**6. 💰 Middleman Service Fees**\n\n"
-        "Our standard middleman service fee is 5% of the total transaction value. Service fees must be fully covered prior to the final exchange of assets.\n\n"
-        "**7. 📜 Liability & Risk Disclaimer**\n\n"
-        "The middleman acts exclusively as a neutral facilitator. We are not liable for post-trade account rollbacks, game-side bans, or issues after assets are handed over.\n\n"
-        "**8. ✅ Binding Agreement**\n\n"
-        "By initiating a middleman ticket or participating in a deal, you acknowledge and agree to comply with all terms stated in this document."
+        "**1. 🚫 No Refunds Once Confirmed**\n\nOnce a trade is confirmed and processed by both parties, all deals are final.\n\n"
+        "**2. 📸 Proof & Record Keeping Required**\n\nValid proof may be requested at any point.\n\n"
+        "**3. ⚖️ Prohibited Goods & Services**\n\nTrading illegal goods or violating Discord ToS is strictly forbidden.\n\n"
+        "**4. ⏰ Time Limits & Readiness**\n\nInactivity exceeding 15 minutes will result in ticket termination.\n\n"
+        "**5. 🛡️ Disputes, Impersonation & Safety**\n\nAlways verify staff user IDs.\n\n"
+        "**6. 💰 Middleman Service Fees**\n\nStandard service fee is 5%.\n\n"
+        "**7. 📜 Liability & Risk Disclaimer**\n\nWe are not liable for post-trade issues.\n\n"
+        "**8. ✅ Binding Agreement**\n\nBy using our service you agree to these terms."
     )
     embed.set_footer(text=f"Powered by {BRAND_NAME}")
     apply_gif_to_embed(embed, as_thumbnail=True)
@@ -627,11 +585,7 @@ async def tos(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="manageban", description="Ban or unban a user from the server")
-@app_commands.describe(
-    action="Choose whether to ban or unban the user",
-    user_id="The Discord User ID to ban or unban",
-    reason="Reason for the ban/unban"
-)
+@app_commands.describe(action="Choose whether to ban or unban the user", user_id="The Discord User ID to ban or unban", reason="Reason")
 @app_commands.default_permissions(ban_members=True)
 async def manageban(interaction: discord.Interaction, action: Literal["ban", "unban"], user_id: str, reason: Optional[str] = "No reason provided"):
     try:
@@ -652,13 +606,8 @@ async def manageban(interaction: discord.Interaction, action: Literal["ban", "un
             embed.add_field(name="Reason", value=reason, inline=False)
             embed.add_field(name="Time", value=timestamp_str, inline=False)
             embed.set_footer(text=BRAND_NAME)
-        except discord.NotFound:
-            embed = discord.Embed(description=f"❌ User with ID `{target_id}` was not found.", color=0x2b2d31)
-        except discord.Forbidden:
-            embed = discord.Embed(description=f"❌ I do not have permission to ban user `{target_id}`.", color=0x2b2d31)
         except Exception as e:
-            embed = discord.Embed(description=f"❌ Error executing ban: {e}", color=0x2b2d31)
-
+            embed = discord.Embed(description=f"❌ Error: {e}", color=0x2b2d31)
     elif action == "unban":
         try:
             user = await bot.fetch_user(target_id)
@@ -669,12 +618,8 @@ async def manageban(interaction: discord.Interaction, action: Literal["ban", "un
             embed.add_field(name="Reason", value=reason, inline=False)
             embed.add_field(name="Time", value=timestamp_str, inline=False)
             embed.set_footer(text=BRAND_NAME)
-        except discord.NotFound:
-            embed = discord.Embed(description=f"❌ Ban record or user with ID `{target_id}` was not found.", color=0x2b2d31)
-        except discord.Forbidden:
-            embed = discord.Embed(description=f"❌ I do not have permission to unban user `{target_id}`.", color=0x2b2d31)
         except Exception as e:
-            embed = discord.Embed(description=f"❌ Error executing unban: {e}", color=0x2b2d31)
+            embed = discord.Embed(description=f"❌ Error: {e}", color=0x2b2d31)
 
     apply_gif_to_embed(embed, as_thumbnail=True)
     gif_file = create_gif_file()
@@ -684,18 +629,12 @@ async def manageban(interaction: discord.Interaction, action: Literal["ban", "un
         await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="managerole", description="Add or remove a role from a user")
-@app_commands.describe(
-    action="Choose whether to add or remove the role",
-    member="The member to assign or remove the role from",
-    role="The role name, mention, or ID",
-    reason="Reason for role change"
-)
+@app_commands.describe(action="add or remove", member="Member", role="Role name or ID", reason="Reason")
 @app_commands.default_permissions(manage_roles=True)
 async def managerole(interaction: discord.Interaction, action: Literal["add", "remove"], member: discord.Member, role: str, reason: Optional[str] = "No reason provided"):
     embed = discord.Embed(color=0x2b2d31)
     embed.set_footer(text=BRAND_NAME)
 
-    # Flexible role resolution (resolves via ID, mention, or name)
     clean_role_str = role.strip("<@&> ").strip()
     target_role = None
 
@@ -703,61 +642,20 @@ async def managerole(interaction: discord.Interaction, action: Literal["add", "r
         target_role = interaction.guild.get_role(int(clean_role_str))
     if not target_role:
         target_role = discord.utils.get(interaction.guild.roles, name=role)
-    if not target_role:
-        target_role = discord.utils.find(lambda r: r.name.lower() == role.lower(), interaction.guild.roles)
 
     if not target_role:
-        embed.description = f"❌ Could not find any role matching `{role}`. Please check the ID or name."
+        embed.description = f"❌ Role `{role}` not found."
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
-
-    role_obj = target_role
-
-    if role_obj >= interaction.guild.me.top_role:
-        embed.description = "❌ I cannot manage this role because it is higher than or equal to my highest role."
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        return
-
-    timestamp_str = f"<t:{int(time.time())}:f>"
 
     if action == "add":
-        if role_obj in member.roles:
-            embed.description = f"⚠️ {member.mention} already has the {role_obj.mention} role."
-        else:
-            try:
-                await member.add_roles(role_obj, reason=reason)
-                embed = discord.Embed(title="Role Given ✅", color=0x2b2d31)
-                embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
-                embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
-                embed.add_field(name="Role", value=role_obj.name, inline=False)
-                embed.add_field(name="Reason", value=reason, inline=False)
-                embed.add_field(name="Time", value=timestamp_str, inline=False)
-                embed.set_footer(text=BRAND_NAME)
-            except discord.Forbidden:
-                embed.description = "❌ I don't have permission to add this role."
-
-    elif action == "remove":
-        if role_obj not in member.roles:
-            embed.description = f"⚠️ {member.mention} does not have the {role_obj.mention} role."
-        else:
-            try:
-                await member.remove_roles(role_obj, reason=reason)
-                embed = discord.Embed(title="Role Removed ❌", color=0x2b2d31)
-                embed.add_field(name="Actioned By", value=f"{interaction.user.name} ({interaction.user.id})", inline=False)
-                embed.add_field(name="Target User", value=f"{member.name} ({member.id})", inline=False)
-                embed.add_field(name="Role", value=role_obj.name, inline=False)
-                embed.add_field(name="Reason", value=reason, inline=False)
-                embed.add_field(name="Time", value=timestamp_str, inline=False)
-                embed.set_footer(text=BRAND_NAME)
-            except discord.Forbidden:
-                embed.description = "❌ I don't have permission to remove this role."
-
-    apply_gif_to_embed(embed, as_thumbnail=True)
-    gif_file = create_gif_file()
-    if gif_file:
-        await interaction.response.send_message(embed=embed, file=gif_file)
+        await member.add_roles(target_role, reason=reason)
+        embed.description = f"✅ Added {target_role.mention} to {member.mention}."
     else:
-        await interaction.response.send_message(embed=embed)
+        await member.remove_roles(target_role, reason=reason)
+        embed.description = f"❌ Removed {target_role.mention} from {member.mention}."
+
+    await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="mmexplain", description="Explains how the Middleman service works step-by-step")
 async def mmexplain(interaction: discord.Interaction):
@@ -767,19 +665,13 @@ async def mmexplain(interaction: discord.Interaction):
         timestamp=discord.utils.utcnow()
     )
     embed.description = (
-        "A **Middleman (MM)** is a verified staff member who acts as a neutral third party to ensure a safe transaction without scams.\n\n"
-        "**1. 🎫 Open a Ticket**\n"
-        "Click the button in the middleman channel to open a private ticket. Invite the person you are trading with.\n\n"
-        "**2. 📝 Agree on Deal Details**\n"
-        "Specify exactly what is being traded (e.g., Account/Item for Cash/Crypto/Giftcard) and state who is paying fees.\n\n"
-        "**3. 📥 Hand over Item to MM**\n"
-        "The seller hands over the in-game item, account, or key to the Middleman. The Middleman secures and verifies it.\n\n"
-        "**4. 💸 Send Payment**\n"
-        "Once the Middleman confirms holding the seller's asset, the buyer sends payment directly to the seller.\n\n"
-        "**5. ✅ Confirmation & Asset Release**\n"
-        "The seller confirms full receipt of payment. The Middleman then transfers the secured asset to the buyer.\n\n"
-        "**6. ⭐ Vouch & Close**\n"
-        "Both parties confirm the transaction is successful, leave a vouch, and the ticket is closed safely."
+        "A **Middleman (MM)** is a verified staff member who acts as a neutral third party to ensure a safe transaction.\n\n"
+        "**1. 🎫 Open a Ticket**\nClick the button in the middleman channel.\n\n"
+        "**2. 📝 Agree on Deal Details**\nSpecify the items and payment methods.\n\n"
+        "**3. 📥 Hand over Item to MM**\nSeller transfers item to the Middleman.\n\n"
+        "**4. 💸 Send Payment**\nBuyer sends payment to the seller.\n\n"
+        "**5. ✅ Confirmation & Asset Release**\nMM releases the assets.\n\n"
+        "**6. ⭐ Vouch & Close**\nLeave a review and close the ticket."
     )
     embed.set_footer(text=BRAND_NAME)
     apply_gif_to_embed(embed, as_thumbnail=True)
@@ -790,47 +682,28 @@ async def mmexplain(interaction: discord.Interaction):
     else:
         await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="autovouch", description="Control the Auto-Vouch System (on / off / now / status)")
-@app_commands.describe(option="Choose 'on' to enable loop, 'off' to disable, 'now' to post immediately, 'status' to check")
+@bot.tree.command(name="autovouch", description="Control Auto-Vouch System")
+@app_commands.describe(option="on / off / now / status")
 @app_commands.default_permissions(administrator=True)
 async def autovouch(interaction: discord.Interaction, option: Literal["on", "off", "now", "status"]):
     if option == "on":
         if not auto_vouch_loop.is_running():
             auto_vouch_loop.start()
-            embed = discord.Embed(
-                color=0x2ecc71, 
-                description=f"✅ **Auto-Vouch System Enabled!**\nIt will post automatically every 14 minutes in <#{AUTO_VOUCH_CHANNEL_ID}>."
-            )
+            await interaction.response.send_message("✅ Auto-Vouch enabled!", ephemeral=True)
         else:
-            embed = discord.Embed(color=0xf1c40f, description="⚠️ The Auto-Vouch system is already running.")
-        embed.set_footer(text=BRAND_NAME)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
+            await interaction.response.send_message("⚠️ Already running.", ephemeral=True)
     elif option == "off":
         if auto_vouch_loop.is_running():
             auto_vouch_loop.cancel()
-            embed = discord.Embed(color=0xe74c3c, description="🛑 **Auto-Vouch System Disabled!**")
+            await interaction.response.send_message("🛑 Auto-Vouch disabled!", ephemeral=True)
         else:
-            embed = discord.Embed(color=0xf1c40f, description="⚠️ The Auto-Vouch system is not running.")
-        embed.set_footer(text=BRAND_NAME)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
+            await interaction.response.send_message("⚠️ Not running.", ephemeral=True)
     elif option == "now":
         embed = create_vouch_embed(interaction.guild)
-        gif_file = create_gif_file()
-        if gif_file:
-            await interaction.response.send_message(embed=embed, file=gif_file)
-        else:
-            await interaction.response.send_message(embed=embed)
-
+        await interaction.response.send_message(embed=embed)
     elif option == "status":
-        is_running = auto_vouch_loop.is_running()
-        status_str = "🟢 **Active** (Posting every 14 mins)" if is_running else "🔴 **Inactive**"
-        embed = discord.Embed(color=0x2b2d31, title="📊 Auto-Vouch System Status")
-        embed.add_field(name="State", value=status_str, inline=False)
-        embed.add_field(name="Target Channel", value=f"<#{AUTO_VOUCH_CHANNEL_ID}>", inline=False)
-        embed.set_footer(text=BRAND_NAME)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        running = auto_vouch_loop.is_running()
+        await interaction.response.send_message(f"Status: {'Active' if running else 'Inactive'}", ephemeral=True)
 
 @bot.tree.command(name="vouchadd", description="Adds vouches to a user")
 @app_commands.default_permissions(administrator=True) 
@@ -896,44 +769,6 @@ async def vouch(interaction: discord.Interaction, member: Optional[discord.Membe
 
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="fill", description="Gives you all missing roles")
-@app_commands.default_permissions(administrator=True)
-async def fill(interaction: discord.Interaction):
-    member = interaction.user 
-    roles_to_add = []
-    member_role = interaction.guild.get_role(MEMBER_ROLE_ID)
-
-    for role in interaction.guild.roles:
-        if role.name == "@everyone" or role.managed or role >= interaction.guild.me.top_role:
-            continue
-        if member_role and role.position < member_role.position:
-            continue
-        if role not in member.roles:
-            roles_to_add.append(role)
-            
-    if not roles_to_add:
-        await interaction.response.send_message("❌ You already have all available roles.", ephemeral=True)
-        return
-
-    embed = discord.Embed(color=0x2b2d31, title="⏳ Assigning roles...")
-    embed.description = f"🛠️ Assigning **{len(roles_to_add)}** roles to {member.mention}..."
-    embed.set_footer(text=BRAND_NAME)
-    await interaction.response.send_message(embed=embed)
-
-    try:
-        await member.add_roles(*roles_to_add, reason="Fill command executed")
-        embed.title = "✅ Roles assigned"
-        embed.description = f"🛠️ **{len(roles_to_add)}** role(s) were assigned to {member.mention}."
-        await interaction.edit_original_response(embed=embed)
-    except discord.Forbidden:
-        embed.title = "❌ Error"
-        embed.description = "I don't have permission to assign some or all of these roles."
-        await interaction.edit_original_response(embed=embed)
-    except Exception as e:
-        embed.title = "❌ Error"
-        embed.description = f"An error occurred: {e}"
-        await interaction.edit_original_response(embed=embed)
-
 # --- 9. Start Bot ---
 if __name__ == "__main__":
     keep_alive()
@@ -941,4 +776,4 @@ if __name__ == "__main__":
     if TOKEN:
         bot.run(TOKEN)
     else:
-        print("❌ Token not found! Please set the 'DISCORD_TOKEN' environment variable or insert your token directly.")
+        print("❌ Token not found!")

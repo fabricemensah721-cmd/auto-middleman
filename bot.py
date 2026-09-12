@@ -711,25 +711,43 @@ async def vouchcount(interaction: discord.Interaction, member: Optional[discord.
 
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="vouch", description="Shows a user's vouches")
-async def vouch(interaction: discord.Interaction, member: Optional[discord.Member] = None):
-    target = member or interaction.user
+@bot.tree.command(name="vouch", description="Vouch for a user and post it to the vouch channel")
+@app_commands.describe(member="The user you are vouching for", review="Your review or feedback message")
+async def vouch(interaction: discord.Interaction, member: discord.Member, review: str = "Smooth and secure transaction!"):
+    if member.id == interaction.user.id:
+        await interaction.response.send_message("❌ You cannot vouch for yourself!", ephemeral=True)
+        return
+
+    # Update vouch data
     vouch_data = load_vouches()
-    current_vouches = vouch_data.get(str(target.id), 0)
+    uid = str(member.id)
+    vouch_data[uid] = vouch_data.get(uid, 0) + 1
+    save_vouches(vouch_data)
 
-    rank_mention = target.top_role.mention if target.top_role else "@Member"
-
-    embed = discord.Embed(
-        description="⭐ **User Vouch Profile**",
-        color=0x2b2d31,
-        timestamp=discord.utils.utcnow()
+    # Build vouch embed
+    embed = discord.Embed(color=0x2ecc71, timestamp=discord.utils.utcnow())
+    embed.description = (
+        "✅ **new vouch**\n\n"
+        f"**User Vouched:** {member.mention}\n"
+        f"**Vouched By:** {interaction.user.mention}\n\n"
+        "**Review**\n"
+        "⭐⭐⭐⭐⭐\n"
+        f"*{review}*"
     )
-    embed.set_author(name=target.name, icon_url=target.display_avatar.url)
-    embed.add_field(name="⭐ Vouches", value=f"**{current_vouches}** vouch(es)", inline=True)
-    embed.add_field(name="👑 Current Rank", value=rank_mention, inline=True)
-    embed.set_footer(text=BRAND_NAME)
+    embed.set_footer(text=f"{BRAND_NAME} • Total Vouches: {vouch_data[uid]}")
+    apply_gif_to_embed(embed, as_thumbnail=True)
 
-    await interaction.response.send_message(embed=embed)
+    # Post to the vouch channel
+    channel = bot.get_channel(AUTO_VOUCH_CHANNEL_ID)
+    gif_file = create_gif_file()
+    
+    if channel:
+        if gif_file:
+            await channel.send(embed=embed, file=create_gif_file())
+        else:
+            await channel.send(embed=embed)
+
+    await interaction.response.send_message(f"✅ Successfully vouched for {member.mention} and posted it to the vouch channel!", ephemeral=True)
 
 # --- 9. Start Bot ---
 if __name__ == "__main__":

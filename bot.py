@@ -16,10 +16,10 @@ from discord import app_commands
 # --- ID & Asset Configurations ---
 MIDDLEMAN_ROLE_ID = 1411386035551867044
 TICKET_CATEGORY_ID = 1415896804024651908
-MEMBER_ROLE_ID = 1519990840406179840
+MEMBER_ROLE_ID = 1411088611926868168
 AUTO_VOUCH_CHANNEL_ID = 1546151910199922719
 
-BRAND_NAME = "G2G Trade Assistant"
+BRAND_NAME = "IMS Helper Bot"
 GIF_FILE_PATH = "IMG_1153_2.gif"
 GIF_URL = None
 
@@ -288,7 +288,6 @@ class TicketMainView(View):
 
     @discord.ui.button(label="Request Middleman", style=discord.ButtonStyle.green, custom_id="request_middleman_main")
     async def request_middleman_button(self, interaction: discord.Interaction, button: Button):
-        # Shows the dropdown menu to select the trade value when the button is clicked
         view = View(timeout=180)
         view.add_item(TicketSelect())
         await interaction.response.send_message("Please select your trade value bracket below:", view=view, ephemeral=True)

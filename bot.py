@@ -19,7 +19,7 @@ MIDDLEMAN_ROLE_ID = 1411386035551867044
 TICKET_CATEGORY_ID = 1415896804024651908
 MEMBER_ROLE_ID = 1411088611926868168
 AUTO_VOUCH_CHANNEL_ID = 1546151910199922719
-TRANSCRIPT_CHANNEL_ID = 1432124881788600320
+TRANSCRIPT_CHANNEL_ID = 0  # Put your transcript/log channel ID here (as an integer)
 
 BRAND_NAME = "IMS Helper Bot"
 GIF_FILE_PATH = "IMG_1153_2.gif"
@@ -218,14 +218,32 @@ class TicketControlsView(View):
         embed.set_footer(text=BRAND_NAME)
         await interaction.channel.send(embed=embed)
 
-        # Generate and upload transcript
+        # Generate transcript and send as embed
         buffer = await generate_transcript(interaction.channel)
-        buffer.seek(0)
+        buffer.seek(0.0)
         file = discord.File(buffer, filename=f"transcript-{interaction.channel.name}.txt")
 
         transcript_channel = interaction.guild.get_channel(TRANSCRIPT_CHANNEL_ID) if TRANSCRIPT_CHANNEL_ID else None
         if transcript_channel:
-            await transcript_channel.send(f"📁 Transcript for **{interaction.channel.name}** closed by {interaction.user.mention}:", file=file)
+            transcript_embed = discord.Embed(
+                title="📁 Ticket Transcript",
+                color=0x2b2d31,
+                timestamp=discord.utils.utcnow()
+            )
+            transcript_embed.description = f"Transcript for **{interaction.channel.name}** has been successfully generated and closed by {interaction.user.mention}."
+            transcript_embed.set_footer(text=BRAND_NAME)
+            apply_gif_to_embed(transcript_embed, as_thumbnail=True)
+
+            gif_file = create_gif_file()
+            files_to_send = [file]
+            if gif_file and not GIF_URL:
+                files_to_send.append(gif_file)
+
+            if GIF_URL:
+                await transcript_channel.send(embed=transcript_embed)
+                await transcript_channel.send(file=file)
+            else:
+                await transcript_channel.send(embed=transcript_embed, files=files_to_send)
 
         await asyncio.sleep(5)
         await interaction.channel.delete()
@@ -560,7 +578,25 @@ async def close(ctx):
 
         transcript_channel = ctx.guild.get_channel(TRANSCRIPT_CHANNEL_ID) if TRANSCRIPT_CHANNEL_ID else None
         if transcript_channel:
-            await transcript_channel.send(f"📁 Transcript for **{ctx.channel.name}** closed by {ctx.author.mention}:", file=file)
+            transcript_embed = discord.Embed(
+                title="📁 Ticket Transcript",
+                color=0x2b2d31,
+                timestamp=discord.utils.utcnow()
+            )
+            transcript_embed.description = f"Transcript for **{ctx.channel.name}** has been successfully generated and closed by {ctx.author.mention}."
+            transcript_embed.set_footer(text=BRAND_NAME)
+            apply_gif_to_embed(transcript_embed, as_thumbnail=True)
+
+            gif_file = create_gif_file()
+            files_to_send = [file]
+            if gif_file and not GIF_URL:
+                files_to_send.append(gif_file)
+
+            if GIF_URL:
+                await transcript_channel.send(embed=transcript_embed)
+                await transcript_channel.send(file=file)
+            else:
+                await transcript_channel.send(embed=transcript_embed, files=files_to_send)
 
         await asyncio.sleep(5)
         await ctx.channel.delete()

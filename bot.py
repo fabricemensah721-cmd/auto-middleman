@@ -29,7 +29,8 @@ TRANSCRIPT_CHANNEL_ID = 0  # Replace with transcript log channel ID
 
 BRAND_NAME = "IMS"
 GIF_FILE_PATH = "IMG_1153_2.gif"
-GIF_URL = None
+# Direct URL fallback to guarantee the large banner always displays even if local GIF file is missing
+GIF_URL = "https://i.imgur.com/5V8p3m0.gif"
 
 DEFAULT_VERIFY_TEXT = (
     "**Target:** {member}\n\n"
@@ -115,19 +116,20 @@ def is_middleman_or_admin():
 
 # Utility Helpers
 def apply_gif(embed: discord.Embed, as_thumbnail: bool = False) -> None:
-    if GIF_URL:
-        if as_thumbnail:
-            embed.set_thumbnail(url=GIF_URL)
-        else:
-            embed.set_image(url=GIF_URL)
-    elif os.path.exists(GIF_FILE_PATH):
+    """Applies local file attachment or fallback URL banner to embed."""
+    if os.path.exists(GIF_FILE_PATH):
         if as_thumbnail:
             embed.set_thumbnail(url=f"attachment://{GIF_FILE_PATH}")
         else:
             embed.set_image(url=f"attachment://{GIF_FILE_PATH}")
+    elif GIF_URL:
+        if as_thumbnail:
+            embed.set_thumbnail(url=GIF_URL)
+        else:
+            embed.set_image(url=GIF_URL)
 
 def build_gif_file() -> Optional[discord.File]:
-    if not GIF_URL and os.path.exists(GIF_FILE_PATH):
+    if os.path.exists(GIF_FILE_PATH):
         return discord.File(GIF_FILE_PATH, filename=GIF_FILE_PATH)
     return None
 
@@ -274,7 +276,7 @@ class TicketControlsView(View):
 
                     gif_file = build_gif_file()
                     files = [file_obj]
-                    if gif_file and not GIF_URL:
+                    if gif_file:
                         files.append(gif_file)
 
                     await t_channel.send(embed=t_embed, files=files)
@@ -579,7 +581,7 @@ async def setup_ticket(ctx):
     guild_icon = ctx.guild.icon.url if ctx.guild.icon else None
     embed.set_footer(text=f"{BRAND_NAME} • Trusted Escrow Platform", icon_url=guild_icon)
 
-    # Attach full-size banner image to the embed
+    # Attach full-size banner image to embed
     apply_gif(embed, as_thumbnail=False)
 
     gif_file = build_gif_file()
@@ -760,7 +762,7 @@ async def close(ctx):
 
                 gif_file = build_gif_file()
                 files = [file_obj]
-                if gif_file and not GIF_URL:
+                if gif_file:
                     files.append(gif_file)
 
                 await t_channel.send(embed=t_embed, files=files)

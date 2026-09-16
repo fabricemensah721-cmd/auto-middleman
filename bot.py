@@ -461,10 +461,12 @@ async def auto_vouch_loop():
 async def prepare_vouch_loop():
     await bot.wait_until_ready()
 
-# Commands
+# Prefix Commands (!prefix)
+
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def sync(ctx):
+    """Sync application slash commands with current guild."""
     bot.tree.copy_global_to(guild=ctx.guild)
     synced = await bot.tree.sync(guild=ctx.guild)
     await ctx.send(f"✅ Synced {len(synced)} command(s).")
@@ -472,6 +474,7 @@ async def sync(ctx):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup_ticket(ctx):
+    """Post the middleman ticket creation panel."""
     embed = discord.Embed(
         title="Middleman Service",
         color=0x2b2d31,
@@ -491,6 +494,7 @@ async def setup_ticket(ctx):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def verify(ctx, member: discord.Member):
+    """Trigger the verification process for a user."""
     raw_text = config_store.get("verify_text", DEFAULT_VERIFY_TEXT)
     embed = discord.Embed(color=0x2b2d31, description=raw_text.replace("{member}", member.mention))
     embed.set_footer(text=BRAND_NAME)
@@ -503,20 +507,38 @@ async def verify(ctx, member: discord.Member):
     await ctx.send(**kwargs)
 
 @bot.command()
+@commands.has_permissions(administrator=True)
+async def setverify(ctx, *, text: str):
+    """Configure custom verification prompt message."""
+    config_store.set("verify_text", text)
+    await ctx.send("✅ Verification prompt message updated successfully.")
+
+@bot.command()
 async def add(ctx, member: discord.Member):
+    """Add a member to a ticket channel."""
     if "ticket" in ctx.channel.name:
         await ctx.channel.set_permissions(member, read_messages=True, send_messages=True)
-        await ctx.send(embed=discord.Embed(color=0x2b2d31, description=f"✅ {member.mention} added."))
+        await ctx.send(embed=discord.Embed(color=0x2b2d31, description=f"✅ {member.mention} added to ticket."))
     else:
-        await ctx.send(embed=discord.Embed(color=0x2b2d31, description="❌ Usable only in ticket channels."))
+        await ctx.send(embed=discord.Embed(color=0x2b2d31, description="❌ Usable only inside ticket channels."))
+
+@bot.command()
+async def remove(ctx, member: discord.Member):
+    """Remove a member from a ticket channel."""
+    if "ticket" in ctx.channel.name:
+        await ctx.channel.set_permissions(member, overwrite=None)
+        await ctx.send(embed=discord.Embed(color=0x2b2d31, description=f"✅ {member.mention} removed from ticket."))
+    else:
+        await ctx.send(embed=discord.Embed(color=0x2b2d31, description="❌ Usable only inside ticket channels."))
 
 @bot.command()
 async def close(ctx):
+    """Close active ticket and compile transcript."""
     if "ticket" not in ctx.channel.name:
-        await ctx.send(embed=discord.Embed(color=0x2b2d31, description="❌ Usable only in ticket channels."))
+        await ctx.send(embed=discord.Embed(color=0x2b2d31, description="❌ Usable only inside ticket channels."))
         return
 
-    await ctx.send(embed=discord.Embed(color=0x2b2d31, description="🔒 Generating transcript... Channel closing in 5s..."))
+    await ctx.send(embed=discord.Embed(color=0x2b2d31, description="🔒 Generating transcript... Closing channel in 5s..."))
     
     try:
         buffer = await create_transcript(ctx.channel)
@@ -552,21 +574,11 @@ async def close(ctx):
     except discord.NotFound:
         pass
 
-# Slash Commands
-@bot.tree.command(name="blacklist", description="Manage user ticket permissions")
-@app_commands.default_permissions(administrator=True)
-async def blacklist(interaction: discord.Interaction, action: Literal["add", "remove"], member: discord.Member, reason: Optional[str] = "Unspecified"):
-    if action == "add":
-        blacklist_store.set(str(member.id), {"reason": reason, "timestamp": int(time.time())})
-        await interaction.response.send_message(f"✅ Blacklisted {member.mention}.\nReason: {reason}", ephemeral=True)
-    else:
-        blacklist_store.delete(str(member.id))
-        await interaction.response.send_message(f"✅ Removed {member.mention} from blacklist.", ephemeral=True)
-
-@bot.tree.command(name="vouch", description="Submit feedback for a middleman")
-async def vouch(interaction: discord.Interaction, member: discord.Member, review: str = "Smooth transaction!"):
-    if member.id == interaction.user.id:
-        await interaction.response.send_message("❌ Self-vouching is disabled.", ephemeral=True)
+@bot.command()
+async def vouch(ctx, member: discord.Member, *, review: str = "Smooth transaction!"):
+    """Submit a vouch for a middleman or trader."""
+    if member.id == ctx.author.id:
+        await ctx.send("❌ You cannot vouch for yourself.")
         return
 
     v_count = vouches_store.get(str(member.id), 0) + 1
@@ -576,7 +588,7 @@ async def vouch(interaction: discord.Interaction, member: discord.Member, review
     embed.description = (
         f"✅ **new vouch**\n\n"
         f"**User Vouched:** {member.mention}\n"
-        f"**Vouched By:** {interaction.user.mention}\n\n"
+        f"**Vouched By:** {ctx.author.mention}\n\n"
         f"**Review**\n⭐⭐⭐⭐⭐\n*{review}*"
     )
     embed.set_footer(text=f"{BRAND_NAME} • Total Vouches: {v_count}")
@@ -590,7 +602,111 @@ async def vouch(interaction: discord.Interaction, member: discord.Member, review
             kwargs["file"] = gif_file
         await channel.send(**kwargs)
 
-    await interaction.response.send_message(f"✅ Vouch registered for {member.mention}.", ephemeral=True)
+    await ctx.send(f"✅ Vouch submitted for {member.mention}.")
+
+@bot.command()
+async def vouches(ctx, member: Optional[discord.Member] = None):
+    """View vouch count for yourself or another member."""
+    target = member or ctx.author
+    count = vouches_store.get(str(target.id), 0)
+    embed = discord.Embed(
+        color=0x2b2d31,
+        description=f"👤 **User:** {target.mention}\n⭐ **Total Vouches:** `{count}`"
+    )
+    embed.set_footer(text=BRAND_NAME)
+    apply_gif(embed, as_thumbnail=True)
+    await ctx.send(embed=embed)
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def clearvouches(ctx, member: discord.Member):
+    """Clear all vouches for a user (Admin only)."""
+    vouches_store.set(str(member.id), 0)
+    await ctx.send(f"✅ Cleared all vouches for {member.mention}.")
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def blacklist(ctx, action: str, member: discord.Member, *, reason: str = "Unspecified"):
+    """Blacklist or unblacklist a member from ticket features (!blacklist add/remove <member> [reason])."""
+    action_lower = action.lower()
+    if action_lower in ["add", "ban"]:
+        blacklist_store.set(str(member.id), {"reason": reason, "timestamp": int(time.time())})
+        await ctx.send(f"✅ Blacklisted {member.mention}.\n**Reason:** {reason}")
+    elif action_lower in ["remove", "unban", "delete"]:
+        blacklist_store.delete(str(member.id))
+        await ctx.send(f"✅ Removed {member.mention} from blacklist.")
+    else:
+        await ctx.send("❌ Invalid action. Use `!blacklist add <member> [reason]` or `!blacklist remove <member>`.")
+
+@bot.command()
+async def tos(ctx):
+    """Display the Terms of Service for trades and tickets."""
+    embed = discord.Embed(
+        title="📜 Terms of Service",
+        color=0x2b2d31,
+        description=(
+            "By opening a ticket or trading in this server, you agree to the following terms:\n\n"
+            "1. **Follow Instructions:** Always follow the directions given by official Middlemen.\n"
+            "2. **No Deal Snagging:** Do not interfere with ongoing trades or attempt to hijack tickets.\n"
+            "3. **No Troll Tickets:** Opening fake or troll tickets will result in an instant blacklist.\n"
+            "4. **Finality:** All middleman-mediated trades are final once items/payments are released.\n"
+            "5. **Impersonation Caution:** Always verify user IDs to prevent scam attempts."
+        )
+    )
+    embed.set_footer(text=BRAND_NAME)
+    apply_gif(embed, as_thumbnail=True)
+
+    gif_file = build_gif_file()
+    kwargs = {"embed": embed}
+    if gif_file:
+        kwargs["file"] = gif_file
+    await ctx.send(**kwargs)
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def autovouch(ctx):
+    """Manually trigger a simulated vouch post in the configured auto-vouch channel."""
+    channel = bot.get_channel(AUTO_VOUCH_CHANNEL_ID) or ctx.channel
+    embed = generate_vouch_embed(ctx.guild)
+    gif_file = build_gif_file()
+    kwargs = {"embed": embed}
+    if gif_file:
+        kwargs["file"] = gif_file
+    await channel.send(**kwargs)
+    if channel.id != ctx.channel.id:
+        await ctx.send(f"✅ Simulated auto-vouch dispatched to {channel.mention}.")
+
+@bot.command()
+async def mmexplain(ctx):
+    """Explain how the Middleman system works."""
+    embed = discord.Embed(
+        title="🛡️ Middleman Service Explained",
+        color=0x3498db,
+        description=(
+            "A **Middleman (MM)** is a verified third party who holds items safely during a trade.\n\n"
+            "**How the Process Works:**\n"
+            "1️⃣ **Open Ticket:** Click the **Request Middleman** button in the ticket channel.\n"
+            "2️⃣ **Confirm Terms:** Both trading parties state the exact deal details in the ticket.\n"
+            "3️⃣ **Secure Items:** The seller/trader transfers items to the official Middleman.\n"
+            "4️⃣ **Payment Sent:** The buyer sends payment/items directly to the seller.\n"
+            "5️⃣ **Release:** Middleman confirms payment receipt and releases the held assets to the buyer.\n\n"
+            "⚠️ **Warning:** Never trade via Direct Messages! Always check the Middleman role badge."
+        )
+    )
+    embed.set_footer(text=BRAND_NAME)
+    apply_gif(embed, as_thumbnail=True)
+
+    gif_file = build_gif_file()
+    kwargs = {"embed": embed}
+    if gif_file:
+        kwargs["file"] = gif_file
+    await ctx.send(**kwargs)
+
+@bot.command()
+async def ping(ctx):
+    """Check bot latency."""
+    latency = round(bot.latency * 1000)
+    await ctx.send(f"🏓 Pong! Latency: `{latency}ms`")
 
 if __name__ == "__main__":
     keep_alive()

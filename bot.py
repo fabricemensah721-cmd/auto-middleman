@@ -544,20 +544,50 @@ async def sync(ctx):
 async def setup_ticket(ctx):
     """Post the middleman ticket creation panel (Admin Only)."""
     embed = discord.Embed(
-        title="Middleman Service",
+        title=f"🛡️ {BRAND_NAME} — Official Middleman Service",
         color=0x2b2d31,
         description=(
-            "• Click **Request Middleman** below to initialize a secure transaction channel.\n\n"
-            "**How it works:**\n"
-            "1. Parties agree to terms in the ticket.\n"
-            "2. Middleman secures assets from seller/trader.\n"
-            "3. Buyer transfers payment/assets.\n"
-            "4. Middleman verifies receipt and releases held assets.\n\n"
-            "⚠️ Do not open troll tickets."
-        )
+            "Welcome to our secure transaction center. Need a safe environment for your high-value trades, "
+            "accounts, or digital assets? Our official Middlemen ensure a **100% safe and scam-free process**.\n\n"
+            "👇 **Click 'Request Middleman' below to create a private trade channel.**"
+        ),
+        timestamp=discord.utils.utcnow()
     )
-    embed.set_footer(text=BRAND_NAME)
-    await ctx.send(embed=embed, view=TicketMainView())
+
+    embed.add_field(
+        name="🔄 How Escrow Works",
+        value=(
+            "1️⃣ **Initiate Trade** — Click the button below to open a ticket.\n"
+            "2️⃣ **Confirm Terms** — State all deal details & items clearly.\n"
+            "3️⃣ **Asset Deposit** — Seller transfers items directly to the Middleman.\n"
+            "4️⃣ **Payment Transfer** — Buyer sends payment/assets to the Seller.\n"
+            "5️⃣ **Final Release** — Middleman confirms receipt and releases assets."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🚨 Safety Rules & Protocols",
+        value=(
+            "• **Never** complete deals outside of this ticket or in Direct Messages (DMs).\n"
+            "• Always verify that your Middleman holds the <@&" + str(MIDDLEMAN_ROLE_ID) + "> role.\n"
+            "• Troll or fake ticket creations will result in an immediate permanent blacklist."
+        ),
+        inline=False
+    )
+
+    guild_icon = ctx.guild.icon.url if ctx.guild.icon else None
+    embed.set_footer(text=f"{BRAND_NAME} • Trusted Escrow Platform", icon_url=guild_icon)
+
+    # Attach full-size banner image to the embed
+    apply_gif(embed, as_thumbnail=False)
+
+    gif_file = build_gif_file()
+    kwargs = {"embed": embed, "view": TicketMainView()}
+    if gif_file:
+        kwargs["file"] = gif_file
+
+    await ctx.send(**kwargs)
 
 @bot.command()
 @commands.has_permissions(administrator=True)

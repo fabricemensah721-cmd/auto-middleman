@@ -102,6 +102,17 @@ blacklist_store = JSONStore("blacklist.json", {})
 tickets_store = JSONStore("tickets.json", {})
 config_store = JSONStore("config.json", {"verify_text": DEFAULT_VERIFY_TEXT})
 
+# Permission Helpers
+def is_middleman_or_admin():
+    async def predicate(ctx):
+        if ctx.author.guild_permissions.administrator:
+            return True
+        has_mm = any(r.id == MIDDLEMAN_ROLE_ID for r in getattr(ctx.author, 'roles', []))
+        if not has_mm:
+            raise commands.CheckFailure("❌ You need the Middleman role or Administrator permissions to use this command.")
+        return True
+    return commands.check(predicate)
+
 # Utility Helpers
 def apply_gif(embed: discord.Embed, as_thumbnail: bool = True) -> None:
     if GIF_URL:
@@ -309,21 +320,63 @@ class TicketMainView(View):
         tickets_store.set(str(ticket_channel.id), interaction.user.id)
         await interaction.response.send_message(f"Ticket opened: {ticket_channel.mention}", ephemeral=True)
 
-        e1 = discord.Embed(
-            title=f"💠 {BRAND_NAME} — Trade Ticket",
-            color=0x3498db,
-            description="Thank you for using our middleman services.\nPlease wait for an available middleman."
+        embed = discord.Embed(
+            title=f"🛡️ {BRAND_NAME} — Secure Middleman Session",
+            color=0x2b2d31,
+            timestamp=discord.utils.utcnow()
         )
-        e1.set_footer(text=BRAND_NAME)
-        apply_gif(e1, as_thumbnail=True)
+        embed.description = (
+            "Welcome to your trade ticket! An official Middleman will be with you shortly.\n"
+            "Please follow the instructions below to ensure a smooth and safe deal."
+        )
 
-        e2 = discord.Embed(title="Trade Parties", color=0x2b2d31, description=f"**Requester:**\n{interaction.user.mention}")
-        e2.set_footer(text=BRAND_NAME)
+        embed.add_field(
+            name="👤 Requester",
+            value=f"{interaction.user.mention}\n`ID: {interaction.user.id}`",
+            inline=True
+        )
+        embed.add_field(
+            name="⏳ Status",
+            value="`Waiting for Middleman...`",
+            inline=True
+        )
+        embed.add_field(
+            name="⏰ Created",
+            value=f"<t:{int(time.time())}:R>",
+            inline=True
+        )
+
+        embed.add_field(
+            name="📋 Trade Details Template",
+            value=(
+                "Please copy, fill out, and send the format below in this chat:\n"
+                "```yaml\n"
+                "1. Trading With: @User\n"
+                "2. Your Item(s): ...\n"
+                "3. Their Item(s): ...\n"
+                "```"
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="🚨 Safety Protocol",
+            value=(
+                "• **Do NOT** complete trades outside of this ticket or via DMs.\n"
+                "• Always verify that the Middleman holds the <@&" + str(MIDDLEMAN_ROLE_ID) + "> role.\n"
+                "• Do not release payment/items until the Middleman confirms receipt."
+            ),
+            inline=False
+        )
+
+        guild_icon = interaction.guild.icon.url if interaction.guild.icon else None
+        embed.set_footer(text=f"{BRAND_NAME} • Trade Verification System", icon_url=guild_icon)
+        apply_gif(embed, as_thumbnail=True)
 
         gif_file = build_gif_file()
         content = f"{interaction.user.mention} <@&{MIDDLEMAN_ROLE_ID}>"
         
-        kwargs = {"content": content, "embeds": [e1, e2], "view": TicketControlsView()}
+        kwargs = {"content": content, "embeds": [embed], "view": TicketControlsView()}
         if gif_file:
             kwargs["file"] = gif_file
         await ticket_channel.send(**kwargs)
@@ -342,6 +395,19 @@ async def on_ready():
     if not auto_vouch_loop.is_running():
         auto_vouch_loop.start()
     logger.info(f"Connected as {bot.user} (ID: {bot.user.id})")
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ You need Administrator permissions to use this command.")
+    elif isinstance(error, commands.CheckFailure):
+        await ctx.send(str(error) if str(error) else "❌ You do not have permission to use this command.")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(f"❌ Missing argument: `{error.param.name}`")
+    elif isinstance(error, commands.CommandNotFound):
+        pass
+    else:
+        logger.error(f"Command error in {ctx.command}: {error}")
 
 # Anti-Nuke Architecture
 nuke_tracker = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
@@ -463,10 +529,12 @@ async def prepare_vouch_loop():
 
 # Prefix Commands (!prefix)
 
+# --- STRICT ADMIN-ONLY COMMANDS (6 Commands) ---
+
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def sync(ctx):
-    """Sync application slash commands with current guild."""
+    """Sync application slash commands with current guild (Admin Only)."""
     bot.tree.copy_global_to(guild=ctx.guild)
     synced = await bot.tree.sync(guild=ctx.guild)
     await ctx.send(f"✅ Synced {len(synced)} command(s).")
@@ -474,7 +542,7 @@ async def sync(ctx):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup_ticket(ctx):
-    """Post the middleman ticket creation panel."""
+    """Post the middleman ticket creation panel (Admin Only)."""
     embed = discord.Embed(
         title="Middleman Service",
         color=0x2b2d31,
@@ -493,8 +561,71 @@ async def setup_ticket(ctx):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
+async def setverify(ctx, *, text: str):
+    """Configure custom verification prompt message (Admin Only)."""
+    config_store.set("verify_text", text)
+    await ctx.send("✅ Verification prompt message updated successfully.")
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def blacklist(ctx, action: str, member: discord.Member, *, reason: str = "Unspecified"):
+    """Blacklist or unblacklist a member from ticket features (Admin Only)."""
+    action_lower = action.lower()
+    if action_lower in ["add", "ban"]:
+        blacklist_store.set(str(member.id), {"reason": reason, "timestamp": int(time.time())})
+        await ctx.send(f"✅ Blacklisted {member.mention}.\n**Reason:** {reason}")
+    elif action_lower in ["remove", "unban", "delete"]:
+        blacklist_store.delete(str(member.id))
+        await ctx.send(f"✅ Removed {member.mention} from blacklist.")
+    else:
+        await ctx.send("❌ Invalid action. Use `!blacklist add <member> [reason]` or `!blacklist remove <member>`.")
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def autovouch(ctx):
+    """Manually trigger a simulated vouch post in the configured auto-vouch channel (Admin Only)."""
+    channel = bot.get_channel(AUTO_VOUCH_CHANNEL_ID) or ctx.channel
+    embed = generate_vouch_embed(ctx.guild)
+    gif_file = build_gif_file()
+    kwargs = {"embed": embed}
+    if gif_file:
+        kwargs["file"] = gif_file
+    await channel.send(**kwargs)
+    if channel.id != ctx.channel.id:
+        await ctx.send(f"✅ Simulated auto-vouch dispatched to {channel.mention}.")
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def tos(ctx):
+    """Display the Terms of Service for trades and tickets (Admin Only)."""
+    embed = discord.Embed(
+        title="📜 Terms of Service",
+        color=0x2b2d31,
+        description=(
+            "By opening a ticket or trading in this server, you agree to the following terms:\n\n"
+            "1. **Follow Instructions:** Always follow the directions given by official Middlemen.\n"
+            "2. **No Deal Snagging:** Do not interfere with ongoing trades or attempt to hijack tickets.\n"
+            "3. **No Troll Tickets:** Opening fake or troll tickets will result in an instant blacklist.\n"
+            "4. **Finality:** All middleman-mediated trades are final once items/payments are released.\n"
+            "5. **Impersonation Caution:** Always verify user IDs to prevent scam attempts."
+        )
+    )
+    embed.set_footer(text=BRAND_NAME)
+    apply_gif(embed, as_thumbnail=True)
+
+    gif_file = build_gif_file()
+    kwargs = {"embed": embed}
+    if gif_file:
+        kwargs["file"] = gif_file
+    await ctx.send(**kwargs)
+
+
+# --- MIDDLEMAN & ADMIN ACCESSIBLE COMMANDS ---
+
+@bot.command()
+@is_middleman_or_admin()
 async def verify(ctx, member: discord.Member):
-    """Trigger the verification process for a user."""
+    """Trigger the verification process for a user (Middleman & Admin)."""
     raw_text = config_store.get("verify_text", DEFAULT_VERIFY_TEXT)
     embed = discord.Embed(color=0x2b2d31, description=raw_text.replace("{member}", member.mention))
     embed.set_footer(text=BRAND_NAME)
@@ -507,11 +638,14 @@ async def verify(ctx, member: discord.Member):
     await ctx.send(**kwargs)
 
 @bot.command()
-@commands.has_permissions(administrator=True)
-async def setverify(ctx, *, text: str):
-    """Configure custom verification prompt message."""
-    config_store.set("verify_text", text)
-    await ctx.send("✅ Verification prompt message updated successfully.")
+@is_middleman_or_admin()
+async def clearvouches(ctx, member: discord.Member):
+    """Clear all vouches for a user (Middleman & Admin)."""
+    vouches_store.set(str(member.id), 0)
+    await ctx.send(f"✅ Cleared all vouches for {member.mention}.")
+
+
+# --- GENERAL & TICKET COMMANDS ---
 
 @bot.command()
 async def add(ctx, member: discord.Member):
@@ -616,65 +750,6 @@ async def vouches(ctx, member: Optional[discord.Member] = None):
     embed.set_footer(text=BRAND_NAME)
     apply_gif(embed, as_thumbnail=True)
     await ctx.send(embed=embed)
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def clearvouches(ctx, member: discord.Member):
-    """Clear all vouches for a user (Admin only)."""
-    vouches_store.set(str(member.id), 0)
-    await ctx.send(f"✅ Cleared all vouches for {member.mention}.")
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def blacklist(ctx, action: str, member: discord.Member, *, reason: str = "Unspecified"):
-    """Blacklist or unblacklist a member from ticket features (!blacklist add/remove <member> [reason])."""
-    action_lower = action.lower()
-    if action_lower in ["add", "ban"]:
-        blacklist_store.set(str(member.id), {"reason": reason, "timestamp": int(time.time())})
-        await ctx.send(f"✅ Blacklisted {member.mention}.\n**Reason:** {reason}")
-    elif action_lower in ["remove", "unban", "delete"]:
-        blacklist_store.delete(str(member.id))
-        await ctx.send(f"✅ Removed {member.mention} from blacklist.")
-    else:
-        await ctx.send("❌ Invalid action. Use `!blacklist add <member> [reason]` or `!blacklist remove <member>`.")
-
-@bot.command()
-async def tos(ctx):
-    """Display the Terms of Service for trades and tickets."""
-    embed = discord.Embed(
-        title="📜 Terms of Service",
-        color=0x2b2d31,
-        description=(
-            "By opening a ticket or trading in this server, you agree to the following terms:\n\n"
-            "1. **Follow Instructions:** Always follow the directions given by official Middlemen.\n"
-            "2. **No Deal Snagging:** Do not interfere with ongoing trades or attempt to hijack tickets.\n"
-            "3. **No Troll Tickets:** Opening fake or troll tickets will result in an instant blacklist.\n"
-            "4. **Finality:** All middleman-mediated trades are final once items/payments are released.\n"
-            "5. **Impersonation Caution:** Always verify user IDs to prevent scam attempts."
-        )
-    )
-    embed.set_footer(text=BRAND_NAME)
-    apply_gif(embed, as_thumbnail=True)
-
-    gif_file = build_gif_file()
-    kwargs = {"embed": embed}
-    if gif_file:
-        kwargs["file"] = gif_file
-    await ctx.send(**kwargs)
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def autovouch(ctx):
-    """Manually trigger a simulated vouch post in the configured auto-vouch channel."""
-    channel = bot.get_channel(AUTO_VOUCH_CHANNEL_ID) or ctx.channel
-    embed = generate_vouch_embed(ctx.guild)
-    gif_file = build_gif_file()
-    kwargs = {"embed": embed}
-    if gif_file:
-        kwargs["file"] = gif_file
-    await channel.send(**kwargs)
-    if channel.id != ctx.channel.id:
-        await ctx.send(f"✅ Simulated auto-vouch dispatched to {channel.mention}.")
 
 @bot.command()
 async def mmexplain(ctx):

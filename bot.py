@@ -27,7 +27,7 @@ MEMBER_ROLE_ID = 1411088611926868168
 AUTO_VOUCH_CHANNEL_ID = 1546151910199922719
 TRANSCRIPT_CHANNEL_ID = 0  # Replace with transcript log channel ID
 
-BRAND_NAME = "IMS Helper Bot"
+BRAND_NAME = "IMS"
 GIF_FILE_PATH = "IMG_1153_2.gif"
 GIF_URL = None
 
@@ -50,7 +50,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "IMS Helper Bot - Operational"
+    return "IMS Bot - Operational"
 
 def run_webserver():
     port = int(os.environ.get("PORT", 8080))
@@ -114,7 +114,7 @@ def is_middleman_or_admin():
     return commands.check(predicate)
 
 # Utility Helpers
-def apply_gif(embed: discord.Embed, as_thumbnail: bool = True) -> None:
+def apply_gif(embed: discord.Embed, as_thumbnail: bool = False) -> None:
     if GIF_URL:
         if as_thumbnail:
             embed.set_thumbnail(url=GIF_URL)
@@ -371,7 +371,7 @@ class TicketMainView(View):
 
         guild_icon = interaction.guild.icon.url if interaction.guild.icon else None
         embed.set_footer(text=f"{BRAND_NAME} • Trade Verification System", icon_url=guild_icon)
-        apply_gif(embed, as_thumbnail=True)
+        apply_gif(embed, as_thumbnail=False)
 
         gif_file = build_gif_file()
         content = f"{interaction.user.mention} <@&{MIDDLEMAN_ROLE_ID}>"
@@ -529,7 +529,7 @@ async def prepare_vouch_loop():
 
 # Prefix Commands (!prefix)
 
-# --- STRICT ADMIN-ONLY COMMANDS (6 Commands) ---
+# --- STRICT ADMIN-ONLY COMMANDS ---
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -549,7 +549,7 @@ async def setup_ticket(ctx):
         description=(
             "Welcome to our secure transaction center. Need a safe environment for your high-value trades, "
             "accounts, or digital assets? Our official Middlemen ensure a **100% safe and scam-free process**.\n\n"
-            "👇 **Click 'Request Middleman' below to create a private trade channel.**"
+            "Click **Request Middleman** below to spawn your private escrow ticket channel instantly!"
         ),
         timestamp=discord.utils.utcnow()
     )
@@ -641,13 +641,50 @@ async def tos(ctx):
         )
     )
     embed.set_footer(text=BRAND_NAME)
-    apply_gif(embed, as_thumbnail=True)
+    apply_gif(embed, as_thumbnail=False)
 
     gif_file = build_gif_file()
     kwargs = {"embed": embed}
     if gif_file:
         kwargs["file"] = gif_file
     await ctx.send(**kwargs)
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def managerole(ctx, action: str, member: discord.Member, role: discord.Role):
+    """Add or remove a role from a member (Admin Only)."""
+    action_lower = action.lower()
+    if action_lower == "add":
+        await member.add_roles(role)
+        await ctx.send(f"✅ Successfully added role {role.mention} to {member.mention}.")
+    elif action_lower in ["remove", "rem"]:
+        await member.remove_roles(role)
+        await ctx.send(f"✅ Successfully removed role {role.mention} from {member.mention}.")
+    else:
+        await ctx.send("❌ Invalid action. Use `!managerole add <member> <role>` or `!managerole remove <member> <role>`.")
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def addvouches(ctx, member: discord.Member, amount: int):
+    """Add a specific number of vouches to a member (Admin Only)."""
+    current = vouches_store.get(str(member.id), 0)
+    new_total = current + amount
+    vouches_store.set(str(member.id), new_total)
+    await ctx.send(f"✅ Added `{amount}` vouches to {member.mention}. New total: `{new_total}` vouches.")
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def manageban(ctx, action: str, user: discord.User, *, reason: str = "No reason provided"):
+    """Ban or unban a user from the guild (Admin Only)."""
+    action_lower = action.lower()
+    if action_lower == "ban":
+        await ctx.guild.ban(user, reason=reason)
+        await ctx.send(f"✅ Successfully banned {user.mention} (`{user.id}`). Reason: {reason}")
+    elif action_lower == "unban":
+        await ctx.guild.unban(user, reason=reason)
+        await ctx.send(f"✅ Successfully unbanned {user.mention} (`{user.id}`). Reason: {reason}")
+    else:
+        await ctx.send("❌ Invalid action. Use `!manageban ban <user> [reason]` or `!manageban unban <user> [reason]`.")
 
 
 # --- MIDDLEMAN & ADMIN ACCESSIBLE COMMANDS ---
@@ -799,7 +836,7 @@ async def mmexplain(ctx):
         )
     )
     embed.set_footer(text=BRAND_NAME)
-    apply_gif(embed, as_thumbnail=True)
+    apply_gif(embed, as_thumbnail=False)
 
     gif_file = build_gif_file()
     kwargs = {"embed": embed}

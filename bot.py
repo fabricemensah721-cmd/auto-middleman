@@ -25,7 +25,7 @@ MIDDLEMAN_ROLE_ID = 1411386035551867044
 TICKET_CATEGORY_ID = 1415896804024651908
 MEMBER_ROLE_ID = 1411088611926868168
 AUTO_VOUCH_CHANNEL_ID = 1546151910199922719
-TRANSCRIPT_CHANNEL_ID = 1432124881788600320
+TRANSCRIPT_CHANNEL_ID = 0  # Replace with transcript log channel ID
 
 BRAND_NAME = "IMS Helper Bot"
 GIF_FILE_PATH = "IMG_1153_2.gif"
@@ -432,13 +432,15 @@ def generate_vouch_embed(guild: discord.Guild) -> discord.Embed:
         "100% legit, guided me through the whole process."
     ]
 
+    rating = random.choice(['⭐⭐⭐⭐⭐', '⭐⭐⭐⭐'])
+
     embed = discord.Embed(color=0x2ecc71)
     embed.description = (
         "✅ **new vouch**\n\n"
         f"**In-Game Items ↔ {random.choice(methods)}**\n\n"
         f"**trader**\n{trader_mention}\n\n"
         f"**middleman**\n{mm_mention}\n\n"
-        f"**trader review**\n{random.choice(['⭐⭐⭐⭐⭐', '⭐⭐⭐⭐'] philosophy := True)}\n*{random.choice(reviews)}*"
+        f"**trader review**\n{rating}\n*{random.choice(reviews)}*"
     )
     embed.set_footer(text=f"{BRAND_NAME} • trade #{random.randint(100000, 999999)} | {datetime.now().strftime('%Y/%m/%d, %H:%M')}")
     apply_gif(embed, as_thumbnail=True)

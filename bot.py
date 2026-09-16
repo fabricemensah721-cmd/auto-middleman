@@ -25,12 +25,11 @@ MIDDLEMAN_ROLE_ID = 1411386035551867044
 TICKET_CATEGORY_ID = 1415896804024651908
 MEMBER_ROLE_ID = 1411088611926868168
 AUTO_VOUCH_CHANNEL_ID = 1546151910199922719
-TRANSCRIPT_CHANNEL_ID = 0  # Replace with transcript log channel ID
+TRANSCRIPT_CHANNEL_ID = 1432124881788600320
 
 BRAND_NAME = "IMS"
 GIF_FILE_PATH = "IMG_1153_2.gif"
-# Direct URL fallback to guarantee the large banner always displays even if local GIF file is missing
-GIF_URL = "https://i.imgur.com/5V8p3m0.gif"
+GIF_URL = None  # Set to None to prevent broken Imgur embeds when local file is missing
 
 DEFAULT_VERIFY_TEXT = (
     "**Target:** {member}\n\n"
@@ -116,7 +115,6 @@ def is_middleman_or_admin():
 
 # Utility Helpers
 def apply_gif(embed: discord.Embed, as_thumbnail: bool = False) -> None:
-    """Applies local file attachment or fallback URL banner to embed."""
     if os.path.exists(GIF_FILE_PATH):
         if as_thumbnail:
             embed.set_thumbnail(url=f"attachment://{GIF_FILE_PATH}")
@@ -581,7 +579,6 @@ async def setup_ticket(ctx):
     guild_icon = ctx.guild.icon.url if ctx.guild.icon else None
     embed.set_footer(text=f"{BRAND_NAME} • Trusted Escrow Platform", icon_url=guild_icon)
 
-    # Attach full-size banner image to embed
     apply_gif(embed, as_thumbnail=False)
 
     gif_file = build_gif_file()
@@ -682,7 +679,7 @@ async def manageban(ctx, action: str, user: discord.User, *, reason: str = "No r
     if action_lower == "ban":
         await ctx.guild.ban(user, reason=reason)
         await ctx.send(f"✅ Successfully banned {user.mention} (`{user.id}`). Reason: {reason}")
-    elif action_lower == "unban":
+    elif action_lower in ["unban"]:
         await ctx.guild.unban(user, reason=reason)
         await ctx.send(f"✅ Successfully unbanned {user.mention} (`{user.id}`). Reason: {reason}")
     else:

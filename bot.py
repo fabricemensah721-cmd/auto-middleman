@@ -650,17 +650,14 @@ async def tos(ctx):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def managerole(ctx, action: str, member: discord.Member, role: discord.Role):
-    """Add or remove a role from a member (Admin Only)."""
-    action_lower = action.lower()
-    if action_lower == "add":
-        await member.add_roles(role)
-        await ctx.send(f"Successfully added role {role.mention} to {member.mention}.")
-    elif action_lower in ["remove", "rem"]:
+async def role(ctx, role: discord.Role, member: discord.Member):
+    """Add or remove a role from a member by typing $role <role> <member> (Admin Only)."""
+    if role in member.roles:
         await member.remove_roles(role)
         await ctx.send(f"Successfully removed role {role.mention} from {member.mention}.")
     else:
-        await ctx.send("Invalid action. Use `$managerole add <member> <role>` or `$managerole remove <member> <role>`.")
+        await member.add_roles(role)
+        await ctx.send(f"Successfully added role {role.mention} to {member.mention}.")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -673,17 +670,10 @@ async def addvouches(ctx, member: discord.Member, amount: int):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def manageban(ctx, action: str, user: discord.User, *, reason: str = "No reason provided"):
-    """Ban or unban a user from the guild (Admin Only)."""
-    action_lower = action.lower()
-    if action_lower == "ban":
-        await ctx.guild.ban(user, reason=reason)
-        await ctx.send(f"Successfully banned {user.mention} (`{user.id}`). Reason: {reason}")
-    elif action_lower in ["unban"]:
-        await ctx.guild.unban(user, reason=reason)
-        await ctx.send(f"Successfully unbanned {user.mention} (`{user.id}`). Reason: {reason}")
-    else:
-        await ctx.send("Invalid action. Use `$manageban ban <user> [reason]` or `$manageban unban <user> [reason]`.")
+async def ban(ctx, user: discord.User, *, reason: str = "No reason provided"):
+    """Ban a user from the guild by typing $ban <user> [reason] (Admin Only)."""
+    await ctx.guild.ban(user, reason=reason)
+    await ctx.send(f"Successfully banned {user.mention} (`{user.id}`). Reason: {reason}")
 
 
 # --- MIDDLEMAN & ADMIN ACCESSIBLE COMMANDS ---

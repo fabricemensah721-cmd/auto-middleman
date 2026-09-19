@@ -18,7 +18,7 @@ from flask import Flask
 
 # Logging Setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("IMSBot")
+logger = logging.getLogger("BloxTradeHelperBot")
 
 # Configuration Constants
 MIDDLEMAN_ROLE_ID = 1411386035551867044
@@ -27,7 +27,7 @@ MEMBER_ROLE_ID = 1411088611926868168
 AUTO_VOUCH_CHANNEL_ID = 1546151910199922719
 TRANSCRIPT_CHANNEL_ID = 1432124881788600320
 
-BRAND_NAME = "IMS"
+BRAND_NAME = "Blox Trade Helper Bot"
 GIF_FILE_PATH = "IMG_1153_2.gif"
 GIF_URL = None  # Set to None to prevent broken Imgur embeds when local file is missing
 
@@ -50,7 +50,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "IMS Bot - Operational"
+    return "Blox Trade Helper Bot - Operational"
 
 def run_webserver():
     port = int(os.environ.get("PORT", 8080))
@@ -774,85 +774,7 @@ async def close(ctx):
     except discord.NotFound:
         pass
 
-@bot.command()
-async def vouch(ctx, member: discord.Member, *, review: str = "Smooth transaction!"):
-    """Submit a vouch for a middleman or trader."""
-    if member.id == ctx.author.id:
-        await ctx.send("❌ You cannot vouch for yourself.")
-        return
-
-    v_count = vouches_store.get(str(member.id), 0) + 1
-    vouches_store.set(str(member.id), v_count)
-
-    embed = discord.Embed(color=0x2ecc71, timestamp=discord.utils.utcnow())
-    embed.description = (
-        f"✅ **new vouch**\n\n"
-        f"**User Vouched:** {member.mention}\n"
-        f"**Vouched By:** {ctx.author.mention}\n\n"
-        f"**Review**\n⭐⭐⭐⭐⭐\n*{review}*"
-    )
-    embed.set_footer(text=f"{BRAND_NAME} • Total Vouches: {v_count}")
-    apply_gif(embed, as_thumbnail=True)
-
-    channel = bot.get_channel(AUTO_VOUCH_CHANNEL_ID)
-    if channel:
-        gif_file = build_gif_file()
-        kwargs = {"embed": embed}
-        if gif_file:
-            kwargs["file"] = gif_file
-        await channel.send(**kwargs)
-
-    await ctx.send(f"✅ Vouch submitted for {member.mention}.")
-
-@bot.command()
-async def vouches(ctx, member: Optional[discord.Member] = None):
-    """View vouch count for yourself or another member."""
-    target = member or ctx.author
-    count = vouches_store.get(str(target.id), 0)
-    embed = discord.Embed(
-        color=0x2b2d31,
-        description=f"👤 **User:** {target.mention}\n⭐ **Total Vouches:** `{count}`"
-    )
-    embed.set_footer(text=BRAND_NAME)
-    apply_gif(embed, as_thumbnail=True)
-    await ctx.send(embed=embed)
-
-@bot.command()
-async def mmexplain(ctx):
-    """Explain how the Middleman system works."""
-    embed = discord.Embed(
-        title="🛡️ Middleman Service Explained",
-        color=0x3498db,
-        description=(
-            "A **Middleman (MM)** is a verified third party who holds items safely during a trade.\n\n"
-            "**How the Process Works:**\n"
-            "1️⃣ **Open Ticket:** Click the **Request Middleman** button in the ticket channel.\n"
-            "2️⃣ **Confirm Terms:** Both trading parties state the exact deal details in the ticket.\n"
-            "3️⃣ **Secure Items:** The seller/trader transfers items to the official Middleman.\n"
-            "4️⃣ **Payment Sent:** The buyer sends payment/items directly to the seller.\n"
-            "5️⃣ **Release:** Middleman confirms payment receipt and releases the held assets to the buyer.\n\n"
-            "⚠️ **Warning:** Never trade via Direct Messages! Always check the Middleman role badge."
-        )
-    )
-    embed.set_footer(text=BRAND_NAME)
-    apply_gif(embed, as_thumbnail=False)
-
-    gif_file = build_gif_file()
-    kwargs = {"embed": embed}
-    if gif_file:
-        kwargs["file"] = gif_file
-    await ctx.send(**kwargs)
-
-@bot.command()
-async def ping(ctx):
-    """Check bot latency."""
-    latency = round(bot.latency * 1000)
-    await ctx.send(f"🏓 Pong! Latency: `{latency}ms`")
-
+# Web Server & Bot Execution
 if __name__ == "__main__":
     keep_alive()
-    token = os.getenv("DISCORD_TOKEN")
-    if token:
-        bot.run(token)
-    else:
-        logger.critical("Missing DISCORD_TOKEN environment variable.")
+    bot.run(os.environ.get("DISCORD_TOKEN", "YOUR_BOT_TOKEN_HERE"))

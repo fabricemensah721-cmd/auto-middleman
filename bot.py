@@ -404,6 +404,8 @@ async def on_command_error(ctx, error):
         await ctx.send(str(error) if str(error) else "You do not have permission to use this command.")
     elif isinstance(error, commands.MissingRequiredArgument):
         await ctx.send(f"Missing argument: `{error.param.name}`")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send(f"Error: {error}")
     elif isinstance(error, commands.CommandNotFound):
         pass
     else:
@@ -652,12 +654,15 @@ async def tos(ctx):
 @commands.has_permissions(administrator=True)
 async def role(ctx, role: discord.Role, member: discord.Member):
     """Add or remove a role from a member by typing $role <role> <member> (Admin Only)."""
-    if role in member.roles:
-        await member.remove_roles(role)
-        await ctx.send(f"Successfully removed role {role.mention} from {member.mention}.")
-    else:
-        await member.add_roles(role)
-        await ctx.send(f"Successfully added role {role.mention} to {member.mention}.")
+    try:
+        if role in member.roles:
+            await member.remove_roles(role)
+            await ctx.send(f"Successfully removed role {role.mention} from {member.mention}.")
+        else:
+            await member.add_roles(role)
+            await ctx.send(f"Successfully added role {role.mention} to {member.mention}.")
+    except discord.Forbidden:
+        await ctx.send("Failed: Bot lacks permission or the role is higher than the bot's highest role.")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -672,8 +677,11 @@ async def addvouches(ctx, member: discord.Member, amount: int):
 @commands.has_permissions(administrator=True)
 async def ban(ctx, user: discord.User, *, reason: str = "No reason provided"):
     """Ban a user from the guild by typing $ban <user> [reason] (Admin Only)."""
-    await ctx.guild.ban(user, reason=reason)
-    await ctx.send(f"Successfully banned {user.mention} (`{user.id}`). Reason: {reason}")
+    try:
+        await ctx.guild.ban(user, reason=reason)
+        await ctx.send(f"Successfully banned {user.mention} (`{user.id}`). Reason: {reason}")
+    except discord.Forbidden:
+        await ctx.send("Failed to ban user: Bot lacks permission or user has higher role hierarchy.")
 
 
 # --- MIDDLEMAN & ADMIN ACCESSIBLE COMMANDS ---

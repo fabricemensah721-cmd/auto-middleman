@@ -5,6 +5,7 @@ import time
 import random
 import logging
 import asyncio
+import difflib
 from datetime import datetime
 from collections import defaultdict
 from typing import Literal, Optional, Any, Dict
@@ -101,6 +102,40 @@ vouches_store = JSONStore("vouches.json", {})
 blacklist_store = JSONStore("blacklist.json", {})
 tickets_store = JSONStore("tickets.json", {})
 config_store = JSONStore("config.json", {"verify_text": DEFAULT_VERIFY_TEXT})
+
+# Flexible Role Converter for Partial & Fuzzy Role Matches
+class FlexibleRoleConverter(commands.Converter):
+    async def convert(self, ctx: commands.Context, argument: str) -> discord.Role:
+        # 1. Try standard discord.py converter (ID, mention, exact name)
+        try:
+            return await commands.RoleConverter().convert(ctx, argument)
+        except commands.RoleNotFound:
+            pass
+
+        arg_lower = argument.lower()
+
+        # 2. Case-insensitive exact match
+        for role in ctx.guild.roles:
+            if role.name.lower() == arg_lower:
+                return role
+
+        # 3. Role starts with query (e.g. "admin" -> "Administrator")
+        for role in ctx.guild.roles:
+            if role.name.lower().startswith(arg_lower):
+                return role
+
+        # 4. Role contains query
+        for role in ctx.guild.roles:
+            if arg_lower in role.name.lower():
+                return role
+
+        # 5. Fuzzy match for typos (e.g. "adminstrator" -> "Administrator")
+        role_map = {role.name.lower(): role for role in ctx.guild.roles}
+        matches = difflib.get_close_matches(arg_lower, role_map.keys(), n=1, cutoff=0.4)
+        if matches:
+            return role_map[matches[0]]
+
+        raise commands.BadArgument(f'Role "{argument}" not found.')
 
 # Permission Helpers
 def is_middleman_or_admin():
@@ -652,7 +687,7 @@ async def tos(ctx):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def role(ctx, role: discord.Role, member: discord.Member):
+async def role(ctx, role: FlexibleRoleConverter, member: discord.Member):
     """Add or remove a role from a member by typing $role <role> <member> (Admin Only)."""
     try:
         if role in member.roles:

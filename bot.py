@@ -386,7 +386,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="$", intents=intents)
 
 @bot.event
 async def on_ready():
@@ -527,7 +527,7 @@ async def auto_vouch_loop():
 async def prepare_vouch_loop():
     await bot.wait_until_ready()
 
-# Prefix Commands (!prefix)
+# Prefix Commands ($prefix)
 
 # --- STRICT ADMIN-ONLY COMMANDS ---
 
@@ -607,7 +607,7 @@ async def blacklist(ctx, action: str, member: discord.Member, *, reason: str = "
         blacklist_store.delete(str(member.id))
         await ctx.send(f"Removed {member.mention} from blacklist.")
     else:
-        await ctx.send("Invalid action. Use `!blacklist add <member> [reason]` or `!blacklist remove <member>`.")
+        await ctx.send("Invalid action. Use `$blacklist add <member> [reason]` or `$blacklist remove <member>`.")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -660,7 +660,7 @@ async def managerole(ctx, action: str, member: discord.Member, role: discord.Rol
         await member.remove_roles(role)
         await ctx.send(f"Successfully removed role {role.mention} from {member.mention}.")
     else:
-        await ctx.send("Invalid action. Use `!managerole add <member> <role>` or `!managerole remove <member> <role>`.")
+        await ctx.send("Invalid action. Use `$managerole add <member> <role>` or `$managerole remove <member> <role>`.")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -683,7 +683,7 @@ async def manageban(ctx, action: str, user: discord.User, *, reason: str = "No r
         await ctx.guild.unban(user, reason=reason)
         await ctx.send(f"Successfully unbanned {user.mention} (`{user.id}`). Reason: {reason}")
     else:
-        await ctx.send("Invalid action. Use `!manageban ban <user> [reason]` or `!manageban unban <user> [reason]`.")
+        await ctx.send("Invalid action. Use `$manageban ban <user> [reason]` or `$manageban unban <user> [reason]`.")
 
 
 # --- MIDDLEMAN & ADMIN ACCESSIBLE COMMANDS ---
@@ -712,6 +712,29 @@ async def clearvouches(ctx, member: discord.Member):
 
 
 # --- GENERAL & TICKET COMMANDS ---
+
+@bot.command()
+async def mmexplain(ctx):
+    """Explain what a Middleman is and how the trade escrow works."""
+    embed = discord.Embed(
+        title=f"{BRAND_NAME} — Middleman Explanation",
+        color=0x2b2d31,
+        description=(
+            "A **Middleman (MM)** acts as a neutral third party during a trade to ensure both sides complete the transaction safely without getting scammed.\n\n"
+            "**How it works:**\n"
+            "1. **Deposit** — The seller transfers the trade item(s) to the Middleman.\n"
+            "2. **Payment** — The buyer sends payment directly to the seller.\n"
+            "3. **Release** — Once payment is confirmed, the Middleman releases the item(s) to the buyer."
+        )
+    )
+    embed.set_footer(text=BRAND_NAME)
+    apply_gif(embed, as_thumbnail=False)
+
+    gif_file = build_gif_file()
+    kwargs = {"embed": embed}
+    if gif_file:
+        kwargs["file"] = gif_file
+    await ctx.send(**kwargs)
 
 @bot.command()
 async def add(ctx, member: discord.Member):

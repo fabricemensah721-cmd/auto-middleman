@@ -687,8 +687,8 @@ async def tos(ctx):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def role(ctx, role: FlexibleRoleConverter, member: discord.Member):
-    """Add or remove a role from a member by typing $role <role> <member> (Admin Only)."""
+async def role(ctx, member: discord.Member, *, role: FlexibleRoleConverter):
+    """Add or remove a role from a member by typing $role <member> <role> (Admin Only)."""
     try:
         if role in member.roles:
             await member.remove_roles(role)

@@ -40,7 +40,7 @@ DEFAULT_VERIFY_TEXT = (
     "As a hitter, you'll gain access to a system where it's simple — Some of our top hitters make "
     "more in a week than they ever expected.\n\n"
     "**You now have access to the staff chat and other hitter channels.** Head to the main guide channel to learn how to start.\n\n"
-    "⏰ Every minute you wait is profit missed.\n\n"
+    "Every minute you wait is profit missed.\n\n"
     "Need help getting started? Ask in the support system channel.\n\n"
     "You've already been pulled in — now it's time to flip the script and come out ahead."
 )
@@ -109,7 +109,7 @@ def is_middleman_or_admin():
             return True
         has_mm = any(r.id == MIDDLEMAN_ROLE_ID for r in getattr(ctx.author, 'roles', []))
         if not has_mm:
-            raise commands.CheckFailure("❌ You need the Middleman role or Administrator permissions to use this command.")
+            raise commands.CheckFailure("You need the Middleman role or Administrator permissions to use this command.")
         return True
     return commands.check(predicate)
 
@@ -152,7 +152,7 @@ class VerifyView(View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self.target_user_id:
             return True
-        await interaction.response.send_message("❌ This interaction is not assigned to you.", ephemeral=True)
+        await interaction.response.send_message("This interaction is not assigned to you.", ephemeral=True)
         return False
 
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.green, custom_id="verify_accept")
@@ -164,7 +164,7 @@ class VerifyView(View):
             except discord.Forbidden:
                 logger.warning(f"Insufficient permissions to assign role {MEMBER_ROLE_ID}")
 
-        embed = discord.Embed(color=0x2b2d31, description=f"✅ {interaction.user.mention} has been successfully verified.")
+        embed = discord.Embed(color=0x2b2d31, description=f"{interaction.user.mention} has been successfully verified.")
         embed.set_footer(text=BRAND_NAME)
         apply_gif(embed, as_thumbnail=True)
 
@@ -176,7 +176,7 @@ class VerifyView(View):
 
     @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger, custom_id="verify_decline")
     async def decline(self, interaction: discord.Interaction, button: Button):
-        embed = discord.Embed(color=0x2b2d31, description=f"❌ {interaction.user.mention} declined verification.")
+        embed = discord.Embed(color=0x2b2d31, description=f"{interaction.user.mention} declined verification.")
         embed.set_footer(text=BRAND_NAME)
         apply_gif(embed, as_thumbnail=True)
 
@@ -194,12 +194,12 @@ class TicketControlsView(View):
     async def claim(self, interaction: discord.Interaction, button: Button):
         has_role = any(r.id == MIDDLEMAN_ROLE_ID for r in interaction.user.roles)
         if not has_role and not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ Only Middlemen can claim tickets.", ephemeral=True)
+            await interaction.response.send_message("Only Middlemen can claim tickets.", ephemeral=True)
             return
 
         creator_id = tickets_store.get(str(interaction.channel.id))
         if creator_id and interaction.user.id == int(creator_id):
-            await interaction.response.send_message("❌ You cannot claim your own ticket.", ephemeral=True)
+            await interaction.response.send_message("You cannot claim your own ticket.", ephemeral=True)
             return
 
         await interaction.channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
@@ -210,7 +210,7 @@ class TicketControlsView(View):
                 child.disabled = False
         await interaction.response.edit_message(view=self)
 
-        embed = discord.Embed(color=0x2b2d31, description=f"🛡️ {interaction.user.mention} claimed this ticket.")
+        embed = discord.Embed(color=0x2b2d31, description=f"{interaction.user.mention} claimed this ticket.")
         embed.set_footer(text=BRAND_NAME)
         apply_gif(embed, as_thumbnail=True)
 
@@ -224,7 +224,7 @@ class TicketControlsView(View):
     async def unclaim(self, interaction: discord.Interaction, button: Button):
         has_role = any(r.id == MIDDLEMAN_ROLE_ID for r in interaction.user.roles)
         if not has_role and not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ Only Middlemen can unclaim tickets.", ephemeral=True)
+            await interaction.response.send_message("Only Middlemen can unclaim tickets.", ephemeral=True)
             return
 
         button.disabled = True
@@ -233,7 +233,7 @@ class TicketControlsView(View):
                 child.disabled = False
         await interaction.response.edit_message(view=self)
 
-        embed = discord.Embed(color=0x2b2d31, description=f"🔓 {interaction.user.mention} unclaimed this ticket.")
+        embed = discord.Embed(color=0x2b2d31, description=f"{interaction.user.mention} unclaimed this ticket.")
         embed.set_footer(text=BRAND_NAME)
         apply_gif(embed, as_thumbnail=True)
 
@@ -251,7 +251,7 @@ class TicketControlsView(View):
             child.disabled = True
         await interaction.message.edit(view=self)
 
-        embed = discord.Embed(color=0x2b2d31, description="🔒 Generating transcript... Closing channel in 5 seconds...")
+        embed = discord.Embed(color=0x2b2d31, description="Generating transcript... Closing channel in 5 seconds...")
         embed.set_footer(text=BRAND_NAME)
         await interaction.channel.send(embed=embed)
 
@@ -264,7 +264,7 @@ class TicketControlsView(View):
                 t_channel = interaction.guild.get_channel(TRANSCRIPT_CHANNEL_ID)
                 if t_channel:
                     t_embed = discord.Embed(
-                        title="📁 Ticket Transcript",
+                        title="Ticket Transcript",
                         color=0x2b2d31,
                         timestamp=discord.utils.utcnow(),
                         description=f"Transcript for **{interaction.channel.name}** closed by {interaction.user.mention}."
@@ -298,7 +298,7 @@ class TicketMainView(View):
         bl_entry = blacklist_store.get(str(interaction.user.id))
         if bl_entry:
             reason = bl_entry.get("reason", "No reason specified.")
-            await interaction.response.send_message(f"❌ You are blacklisted from opening tickets.\n**Reason:** {reason}", ephemeral=True)
+            await interaction.response.send_message(f"You are blacklisted from opening tickets.\n**Reason:** {reason}", ephemeral=True)
             return
 
         mm_role = interaction.guild.get_role(MIDDLEMAN_ROLE_ID)
@@ -321,7 +321,7 @@ class TicketMainView(View):
         await interaction.response.send_message(f"Ticket opened: {ticket_channel.mention}", ephemeral=True)
 
         embed = discord.Embed(
-            title=f"🛡️ {BRAND_NAME} — Secure Middleman Session",
+            title=f"{BRAND_NAME} — Secure Middleman Session",
             color=0x2b2d31,
             timestamp=discord.utils.utcnow()
         )
@@ -331,23 +331,23 @@ class TicketMainView(View):
         )
 
         embed.add_field(
-            name="👤 Requester",
+            name="Requester",
             value=f"{interaction.user.mention}\n`ID: {interaction.user.id}`",
             inline=True
         )
         embed.add_field(
-            name="⏳ Status",
+            name="Status",
             value="`Waiting for Middleman...`",
             inline=True
         )
         embed.add_field(
-            name="⏰ Created",
+            name="Created",
             value=f"<t:{int(time.time())}:R>",
             inline=True
         )
 
         embed.add_field(
-            name="📋 Trade Details Template",
+            name="Trade Details Template",
             value=(
                 "Please copy, fill out, and send the format below in this chat:\n"
                 "```yaml\n"
@@ -360,7 +360,7 @@ class TicketMainView(View):
         )
 
         embed.add_field(
-            name="🚨 Safety Protocol",
+            name="Safety Protocol",
             value=(
                 "• **Do NOT** complete trades outside of this ticket or via DMs.\n"
                 "• Always verify that the Middleman holds the <@&" + str(MIDDLEMAN_ROLE_ID) + "> role.\n"
@@ -399,11 +399,11 @@ async def on_ready():
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ You need Administrator permissions to use this command.")
+        await ctx.send("You need Administrator permissions to use this command.")
     elif isinstance(error, commands.CheckFailure):
-        await ctx.send(str(error) if str(error) else "❌ You do not have permission to use this command.")
+        await ctx.send(str(error) if str(error) else "You do not have permission to use this command.")
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(f"❌ Missing argument: `{error.param.name}`")
+        await ctx.send(f"Missing argument: `{error.param.name}`")
     elif isinstance(error, commands.CommandNotFound):
         pass
     else:
@@ -434,7 +434,7 @@ async def evaluate_nuke(guild: discord.Guild, user: Optional[discord.User], acti
         try:
             await guild.ban(user, reason=f"Anti-Nuke Triggered: {action_key} threshold breached.")
             if guild.owner:
-                embed = discord.Embed(title="🚨 ANTI-NUKE TRIGGERED", color=0x2b2d31)
+                embed = discord.Embed(title="ANTI-NUKE TRIGGERED", color=0x2b2d31)
                 embed.description = f"**Server:** {guild.name}\n**Banned User:** {user.mention} (`{user.id}`)\n**Reason:** Exceeded {action_key} limits."
                 embed.set_footer(text=BRAND_NAME)
                 apply_gif(embed, as_thumbnail=True)
@@ -498,12 +498,12 @@ def generate_vouch_embed(guild: discord.Guild) -> discord.Embed:
         "100% legit, guided me through the whole process."
     ]
 
-    rating = random.choice(['⭐⭐⭐⭐⭐', '⭐⭐⭐⭐'])
+    rating = random.choice(['5/5', '4/5'])
 
     embed = discord.Embed(color=0x2ecc71)
     embed.description = (
-        "✅ **new vouch**\n\n"
-        f"**In-Game Items ↔ {random.choice(methods)}**\n\n"
+        "**new vouch**\n\n"
+        f"**In-Game Items <-> {random.choice(methods)}**\n\n"
         f"**trader**\n{trader_mention}\n\n"
         f"**middleman**\n{mm_mention}\n\n"
         f"**trader review**\n{rating}\n*{random.choice(reviews)}*"
@@ -537,14 +537,14 @@ async def sync(ctx):
     """Sync application slash commands with current guild (Admin Only)."""
     bot.tree.copy_global_to(guild=ctx.guild)
     synced = await bot.tree.sync(guild=ctx.guild)
-    await ctx.send(f"✅ Synced {len(synced)} command(s).")
+    await ctx.send(f"Synced {len(synced)} command(s).")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup_ticket(ctx):
     """Post the middleman ticket creation panel (Admin Only)."""
     embed = discord.Embed(
-        title=f"🛡️ {BRAND_NAME} — Official Middleman Service",
+        title=f"{BRAND_NAME} — Official Middleman Service",
         color=0x2b2d31,
         description=(
             "Welcome to our secure transaction center. Need a safe environment for your high-value trades, "
@@ -555,19 +555,19 @@ async def setup_ticket(ctx):
     )
 
     embed.add_field(
-        name="🔄 How Escrow Works",
+        name="How Escrow Works",
         value=(
-            "1️⃣ **Initiate Trade** — Click the button below to open a ticket.\n"
-            "2️⃣ **Confirm Terms** — State all deal details & items clearly.\n"
-            "3️⃣ **Asset Deposit** — Seller transfers items directly to the Middleman.\n"
-            "4️⃣ **Payment Transfer** — Buyer sends payment/assets to the Seller.\n"
-            "5️⃣ **Final Release** — Middleman confirms receipt and releases assets."
+            "1. **Initiate Trade** — Click the button below to open a ticket.\n"
+            "2. **Confirm Terms** — State all deal details & items clearly.\n"
+            "3. **Asset Deposit** — Seller transfers items directly to the Middleman.\n"
+            "4. **Payment Transfer** — Buyer sends payment/assets to the Seller.\n"
+            "5. **Final Release** — Middleman confirms receipt and releases assets."
         ),
         inline=False
     )
 
     embed.add_field(
-        name="🚨 Safety Rules & Protocols",
+        name="Safety Rules & Protocols",
         value=(
             "• **Never** complete deals outside of this ticket or in Direct Messages (DMs).\n"
             "• Always verify that your Middleman holds the <@&" + str(MIDDLEMAN_ROLE_ID) + "> role.\n"
@@ -593,7 +593,7 @@ async def setup_ticket(ctx):
 async def setverify(ctx, *, text: str):
     """Configure custom verification prompt message (Admin Only)."""
     config_store.set("verify_text", text)
-    await ctx.send("✅ Verification prompt message updated successfully.")
+    await ctx.send("Verification prompt message updated successfully.")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -602,12 +602,12 @@ async def blacklist(ctx, action: str, member: discord.Member, *, reason: str = "
     action_lower = action.lower()
     if action_lower in ["add", "ban"]:
         blacklist_store.set(str(member.id), {"reason": reason, "timestamp": int(time.time())})
-        await ctx.send(f"✅ Blacklisted {member.mention}.\n**Reason:** {reason}")
+        await ctx.send(f"Blacklisted {member.mention}.\n**Reason:** {reason}")
     elif action_lower in ["remove", "unban", "delete"]:
         blacklist_store.delete(str(member.id))
-        await ctx.send(f"✅ Removed {member.mention} from blacklist.")
+        await ctx.send(f"Removed {member.mention} from blacklist.")
     else:
-        await ctx.send("❌ Invalid action. Use `!blacklist add <member> [reason]` or `!blacklist remove <member>`.")
+        await ctx.send("Invalid action. Use `!blacklist add <member> [reason]` or `!blacklist remove <member>`.")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -621,14 +621,14 @@ async def autovouch(ctx):
         kwargs["file"] = gif_file
     await channel.send(**kwargs)
     if channel.id != ctx.channel.id:
-        await ctx.send(f"✅ Simulated auto-vouch dispatched to {channel.mention}.")
+        await ctx.send(f"Simulated auto-vouch dispatched to {channel.mention}.")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def tos(ctx):
     """Display the Terms of Service for trades and tickets (Admin Only)."""
     embed = discord.Embed(
-        title="📜 Terms of Service",
+        title="Terms of Service",
         color=0x2b2d31,
         description=(
             "By opening a ticket or trading in this server, you agree to the following terms:\n\n"
@@ -655,12 +655,12 @@ async def managerole(ctx, action: str, member: discord.Member, role: discord.Rol
     action_lower = action.lower()
     if action_lower == "add":
         await member.add_roles(role)
-        await ctx.send(f"✅ Successfully added role {role.mention} to {member.mention}.")
+        await ctx.send(f"Successfully added role {role.mention} to {member.mention}.")
     elif action_lower in ["remove", "rem"]:
         await member.remove_roles(role)
-        await ctx.send(f"✅ Successfully removed role {role.mention} from {member.mention}.")
+        await ctx.send(f"Successfully removed role {role.mention} from {member.mention}.")
     else:
-        await ctx.send("❌ Invalid action. Use `!managerole add <member> <role>` or `!managerole remove <member> <role>`.")
+        await ctx.send("Invalid action. Use `!managerole add <member> <role>` or `!managerole remove <member> <role>`.")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -669,7 +669,7 @@ async def addvouches(ctx, member: discord.Member, amount: int):
     current = vouches_store.get(str(member.id), 0)
     new_total = current + amount
     vouches_store.set(str(member.id), new_total)
-    await ctx.send(f"✅ Added `{amount}` vouches to {member.mention}. New total: `{new_total}` vouches.")
+    await ctx.send(f"Added `{amount}` vouches to {member.mention}. New total: `{new_total}` vouches.")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -678,12 +678,12 @@ async def manageban(ctx, action: str, user: discord.User, *, reason: str = "No r
     action_lower = action.lower()
     if action_lower == "ban":
         await ctx.guild.ban(user, reason=reason)
-        await ctx.send(f"✅ Successfully banned {user.mention} (`{user.id}`). Reason: {reason}")
+        await ctx.send(f"Successfully banned {user.mention} (`{user.id}`). Reason: {reason}")
     elif action_lower in ["unban"]:
         await ctx.guild.unban(user, reason=reason)
-        await ctx.send(f"✅ Successfully unbanned {user.mention} (`{user.id}`). Reason: {reason}")
+        await ctx.send(f"Successfully unbanned {user.mention} (`{user.id}`). Reason: {reason}")
     else:
-        await ctx.send("❌ Invalid action. Use `!manageban ban <user> [reason]` or `!manageban unban <user> [reason]`.")
+        await ctx.send("Invalid action. Use `!manageban ban <user> [reason]` or `!manageban unban <user> [reason]`.")
 
 
 # --- MIDDLEMAN & ADMIN ACCESSIBLE COMMANDS ---
@@ -708,7 +708,7 @@ async def verify(ctx, member: discord.Member):
 async def clearvouches(ctx, member: discord.Member):
     """Clear all vouches for a user (Middleman & Admin)."""
     vouches_store.set(str(member.id), 0)
-    await ctx.send(f"✅ Cleared all vouches for {member.mention}.")
+    await ctx.send(f"Cleared all vouches for {member.mention}.")
 
 
 # --- GENERAL & TICKET COMMANDS ---
@@ -718,27 +718,27 @@ async def add(ctx, member: discord.Member):
     """Add a member to a ticket channel."""
     if "ticket" in ctx.channel.name:
         await ctx.channel.set_permissions(member, read_messages=True, send_messages=True)
-        await ctx.send(embed=discord.Embed(color=0x2b2d31, description=f"✅ {member.mention} added to ticket."))
+        await ctx.send(embed=discord.Embed(color=0x2b2d31, description=f"{member.mention} added to ticket."))
     else:
-        await ctx.send(embed=discord.Embed(color=0x2b2d31, description="❌ Usable only inside ticket channels."))
+        await ctx.send(embed=discord.Embed(color=0x2b2d31, description="Usable only inside ticket channels."))
 
 @bot.command()
 async def remove(ctx, member: discord.Member):
     """Remove a member from a ticket channel."""
     if "ticket" in ctx.channel.name:
         await ctx.channel.set_permissions(member, overwrite=None)
-        await ctx.send(embed=discord.Embed(color=0x2b2d31, description=f"✅ {member.mention} removed from ticket."))
+        await ctx.send(embed=discord.Embed(color=0x2b2d31, description=f"{member.mention} removed from ticket."))
     else:
-        await ctx.send(embed=discord.Embed(color=0x2b2d31, description="❌ Usable only inside ticket channels."))
+        await ctx.send(embed=discord.Embed(color=0x2b2d31, description="Usable only inside ticket channels."))
 
 @bot.command()
 async def close(ctx):
     """Close active ticket and compile transcript."""
     if "ticket" not in ctx.channel.name:
-        await ctx.send(embed=discord.Embed(color=0x2b2d31, description="❌ Usable only inside ticket channels."))
+        await ctx.send(embed=discord.Embed(color=0x2b2d31, description="Usable only inside ticket channels."))
         return
 
-    await ctx.send(embed=discord.Embed(color=0x2b2d31, description="🔒 Generating transcript... Closing channel in 5s..."))
+    await ctx.send(embed=discord.Embed(color=0x2b2d31, description="Generating transcript... Closing channel in 5s..."))
     
     try:
         buffer = await create_transcript(ctx.channel)
@@ -749,7 +749,7 @@ async def close(ctx):
             t_channel = ctx.guild.get_channel(TRANSCRIPT_CHANNEL_ID)
             if t_channel:
                 t_embed = discord.Embed(
-                    title="📁 Ticket Transcript",
+                    title="Ticket Transcript",
                     color=0x2b2d31,
                     timestamp=discord.utils.utcnow(),
                     description=f"Transcript for **{ctx.channel.name}** closed by {ctx.author.mention}."

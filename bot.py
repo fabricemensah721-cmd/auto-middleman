@@ -307,11 +307,12 @@ class AutoMMStartView(View):
         super().__init__(timeout=None)
         self.deal_type = deal_type
 
-    @discord.ui.button(label="Start", style=discord.ButtonStyle.green, custom_id="start_auto_mm_deal")
-    async def start_deal(self, interaction: discord.Interaction, button: Button):
+    async def start_deal(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
         bl_entry = blacklist_store.get(str(interaction.user.id))
         if bl_entry:
-            await interaction.response.send_message("You are blacklisted from opening tickets.", ephemeral=True)
+            await interaction.followup.send("You are blacklisted from opening tickets.", ephemeral=True)
             return
 
         category = interaction.guild.get_channel(TICKET_CATEGORY_ID)
@@ -326,7 +327,7 @@ class AutoMMStartView(View):
         )
 
         tickets_store.set(str(ticket_channel.id), interaction.user.id)
-        await interaction.response.send_message(f"Escrow session created: {ticket_channel.mention}", ephemeral=True)
+        await interaction.followup.send(f"Escrow session created: {ticket_channel.mention}", ephemeral=True)
 
         embed_init = discord.Embed(
             title=f"{self.deal_type} Escrow Deal",
@@ -360,40 +361,40 @@ class AutoMMPanelView(View):
     # Crypto Row
     @discord.ui.button(label="Bitcoin", style=discord.ButtonStyle.green, row=0, custom_id="amm_btc")
     async def btc(self, interaction: discord.Interaction, button: Button):
-        await AutoMMStartView("Bitcoin").start_deal(interaction, button)
+        await AutoMMStartView("Bitcoin").start_deal(interaction)
 
     @discord.ui.button(label="Ethereum", style=discord.ButtonStyle.green, row=0, custom_id="amm_eth")
     async def eth(self, interaction: discord.Interaction, button: Button):
-        await AutoMMStartView("Ethereum").start_deal(interaction, button)
+        await AutoMMStartView("Ethereum").start_deal(interaction)
 
     @discord.ui.button(label="Litecoin", style=discord.ButtonStyle.green, row=0, custom_id="amm_ltc")
     async def ltc(self, interaction: discord.Interaction, button: Button):
-        await AutoMMStartView("Litecoin").start_deal(interaction, button)
+        await AutoMMStartView("Litecoin").start_deal(interaction)
 
     @discord.ui.button(label="Solana", style=discord.ButtonStyle.green, row=0, custom_id="amm_sol")
     async def sol(self, interaction: discord.Interaction, button: Button):
-        await AutoMMStartView("Solana").start_deal(interaction, button)
+        await AutoMMStartView("Solana").start_deal(interaction)
 
     # Stablecoins Row
     @discord.ui.button(label="USDT [ERC-20]", style=discord.ButtonStyle.green, row=1, custom_id="amm_usdt_erc20")
     async def usdt_erc20(self, interaction: discord.Interaction, button: Button):
-        await AutoMMStartView("USDT [ERC-20]").start_deal(interaction, button)
+        await AutoMMStartView("USDT [ERC-20]").start_deal(interaction)
 
     @discord.ui.button(label="USDC [ERC-20]", style=discord.ButtonStyle.green, row=1, custom_id="amm_usdc_erc20")
     async def usdc_erc20(self, interaction: discord.Interaction, button: Button):
-        await AutoMMStartView("USDC [ERC-20]").start_deal(interaction, button)
+        await AutoMMStartView("USDC [ERC-20]").start_deal(interaction)
 
     @discord.ui.button(label="USDT [BEP-20]", style=discord.ButtonStyle.green, row=2, custom_id="amm_usdt_bep20")
     async def usdt_bep20(self, interaction: discord.Interaction, button: Button):
-        await AutoMMStartView("USDT [BEP-20]").start_deal(interaction, button)
+        await AutoMMStartView("USDT [BEP-20]").start_deal(interaction)
 
     @discord.ui.button(label="USDT [SOL]", style=discord.ButtonStyle.green, row=2, custom_id="amm_usdt_sol")
     async def usdt_sol(self, interaction: discord.Interaction, button: Button):
-        await AutoMMStartView("USDT [SOL]").start_deal(interaction, button)
+        await AutoMMStartView("USDT [SOL]").start_deal(interaction)
 
     @discord.ui.button(label="USDC [SOL]", style=discord.ButtonStyle.green, row=2, custom_id="amm_usdc_sol")
     async def usdc_sol(self, interaction: discord.Interaction, button: Button):
-        await AutoMMStartView("USDC [SOL]").start_deal(interaction, button)
+        await AutoMMStartView("USDC [SOL]").start_deal(interaction)
 
 
 # ==========================================

